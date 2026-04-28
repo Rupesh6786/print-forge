@@ -1,71 +1,125 @@
-import { TrendingUp, Package, ShoppingBag, Users, ArrowUpRight } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
+import { TrendingUp, ShoppingBag, Package, Users, IndianRupee, Wrench, FileText, Mail } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 const stats = [
-  { label: "Revenue (30d)", value: "$24,891", delta: "+12.4%", icon: TrendingUp },
-  { label: "Active orders", value: "47", delta: "+8", icon: ShoppingBag },
-  { label: "Products", value: "128", delta: "+3", icon: Package },
-  { label: "New users", value: "312", delta: "+24%", icon: Users },
+  { label: "Total revenue", value: "₹2,84,500", change: "+12.4%", icon: IndianRupee, accent: "from-emerald-500/20 to-emerald-500/5" },
+  { label: "Total orders",  value: "1,284",    change: "+8.2%",  icon: ShoppingBag, accent: "from-blue-500/20 to-blue-500/5" },
+  { label: "Total products", value: "62",       change: "+3",     icon: Package,     accent: "from-violet-500/20 to-violet-500/5" },
+  { label: "Total users",   value: "934",      change: "+24",    icon: Users,       accent: "from-pink-500/20 to-pink-500/5" },
 ];
 
-const recent = [
-  { id: "#NX-2847", customer: "Sarah Chen", item: "Voronoi Lamp Shade", amount: "$89", status: "printing" },
-  { id: "#NX-2846", customer: "Marcus Webb", item: "Dragon (custom)", amount: "$156", status: "shipped" },
-  { id: "#NX-2845", customer: "Aiko Tanaka", item: "Hex Planter ×6", amount: "$144", status: "pending" },
-  { id: "#NX-2844", customer: "Liam O'Brien", item: "Drone Frame X4", amount: "$129", status: "delivered" },
+const revenueData = [
+  { d: "Mon", v: 14200 }, { d: "Tue", v: 18900 }, { d: "Wed", v: 16400 },
+  { d: "Thu", v: 22500 }, { d: "Fri", v: 28100 }, { d: "Sat", v: 31200 }, { d: "Sun", v: 26800 },
 ];
 
-const statusColor: Record<string, string> = {
-  pending: "bg-amber-500/15 text-amber-500",
-  printing: "bg-primary/15 text-primary",
-  shipped: "bg-blue-500/15 text-blue-400",
-  delivered: "bg-emerald-500/15 text-emerald-400",
+const recentOrders = [
+  { id: "PF12039", customer: "Anaya S.",   amount: 899,  status: "printing"  },
+  { id: "PF12038", customer: "Karthik R.", amount: 349,  status: "shipped"   },
+  { id: "PF12037", customer: "Meera P.",   amount: 1248, status: "pending"   },
+  { id: "PF12036", customer: "Vikram J.",  amount: 429,  status: "delivered" },
+];
+
+const statusStyle: Record<string, string> = {
+  pending:   "bg-amber-500/10 text-amber-500",
+  printing:  "bg-blue-500/10 text-blue-500",
+  shipped:   "bg-violet-500/10 text-violet-500",
+  delivered: "bg-emerald-500/10 text-emerald-500",
 };
 
 const AdminOverview = () => (
   <AdminLayout>
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-8">
       <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Overview</h1>
-        <p className="text-muted-foreground mt-1">Welcome back. Here's what's happening at the print farm.</p>
+        <h1 className="font-display text-2xl md:text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Here's how PrintForge is doing today.</p>
       </div>
 
+      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => (
-          <div key={s.label} className="glass-card rounded-2xl p-5 hover:shadow-glow transition-all">
-            <div className="flex items-start justify-between">
-              <s.icon className="h-5 w-5 text-primary" />
-              <span className="text-xs font-mono text-emerald-400 flex items-center gap-0.5">
-                <ArrowUpRight className="h-3 w-3" /> {s.delta}
-              </span>
+          <div key={s.label} className={`relative overflow-hidden glass-card rounded-2xl p-5`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${s.accent} pointer-events-none`} />
+            <div className="relative flex items-start justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">{s.label}</div>
+                <div className="font-display text-2xl md:text-3xl font-bold mt-1">{s.value}</div>
+                <div className="text-xs text-emerald-500 mt-1 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> {s.change}</div>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-background/60 flex items-center justify-center">
+                <s.icon className="h-4 w-4 text-primary" />
+              </div>
             </div>
-            <div className="mt-4 font-display text-2xl md:text-3xl font-bold">{s.value}</div>
-            <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-border/50 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold">Recent orders</h2>
-          <a href="/admin/orders" className="text-xs text-primary hover:underline">View all</a>
-        </div>
-        <div className="divide-y divide-border/40">
-          {recent.map((o) => (
-            <div key={o.id} className="p-4 md:p-5 flex items-center justify-between gap-4 hover:bg-muted/30 transition-colors">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-mono text-xs text-muted-foreground">{o.id}</span>
-                  <span className="font-medium truncate">{o.customer}</span>
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5 truncate">{o.item}</div>
-              </div>
-              <div className="font-mono text-sm">{o.amount}</div>
-              <span className={`text-[10px] uppercase font-mono px-2 py-1 rounded-md ${statusColor[o.status]}`}>
-                {o.status}
-              </span>
+      {/* Quick chips */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { i: Wrench,   l: "Active services",  v: "4"  },
+          { i: FileText, l: "Pending quotes",   v: "12" },
+          { i: Mail,     l: "New enquiries",    v: "7"  },
+          { i: Package,  l: "Low stock items",  v: "3"  },
+        ].map((c) => (
+          <div key={c.l} className="glass rounded-xl p-3 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-aurora/10 flex items-center justify-center">
+              <c.i className="h-4 w-4 text-primary" />
             </div>
-          ))}
+            <div>
+              <div className="text-xs text-muted-foreground">{c.l}</div>
+              <div className="font-display font-bold">{c.v}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Revenue chart */}
+        <div className="glass-card rounded-2xl p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display font-semibold">Revenue this week</h2>
+              <p className="text-xs text-muted-foreground">Daily total in ₹</p>
+            </div>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueData}>
+                <defs>
+                  <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="d" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" fill="url(#rev)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Recent orders */}
+        <div className="glass-card rounded-2xl p-5">
+          <h2 className="font-display font-semibold mb-3">Recent orders</h2>
+          <div className="space-y-2">
+            {recentOrders.map((o) => (
+              <div key={o.id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                <div>
+                  <div className="text-sm font-medium">{o.customer}</div>
+                  <div className="text-xs text-muted-foreground font-mono">#{o.id}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold">₹{o.amount}</div>
+                  <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider ${statusStyle[o.status]}`}>{o.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

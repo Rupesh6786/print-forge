@@ -39,10 +39,10 @@ const AdminInventory = () => {
                 <img src={p.image} alt={p.name} className="h-12 w-12 rounded-lg object-cover" />
                 <div>
                   <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-muted-foreground md:hidden">{p.category} · ${p.price} · {p.stock} stock</div>
+                  <div className="text-xs text-muted-foreground md:hidden">{p.category} · ₹{p.price} · {p.stock} stock</div>
                 </div>
                 <div className="hidden md:block text-sm text-muted-foreground">{p.category}</div>
-                <div className="hidden md:block font-mono">${p.price}</div>
+                <div className="hidden md:block font-mono">₹{p.price}</div>
                 <div className="hidden md:block font-mono text-sm">{p.stock}</div>
                 <div className="flex gap-1 justify-end">
                   <Button variant="ghost" size="icon" onClick={() => toast.info("Edit " + p.name)}><Edit2 className="h-4 w-4" /></Button>

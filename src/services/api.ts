@@ -1,39 +1,36 @@
 /**
- * Nexus3D API Service Layer
+ * PrintForge API Service Layer
  * Designed for a REST backend hosted on DigitalOcean (Node/Express)
- * with a Hostinger MySQL database. STL files are uploaded to
- * DigitalOcean Spaces and only the URL is persisted.
+ * that connects to the Hostinger MySQL database (see database/mysql.sql).
+ * STL files upload directly to DigitalOcean Spaces; only URLs are stored.
  *
- * Configure via:
- *   VITE_API_URL=https://api.your-domain.com
- *   VITE_RAZORPAY_KEY=rzp_test_xxx
+ * Authentication: Firebase Auth on the client. The frontend sends the
+ * Firebase ID token as Authorization: Bearer <token>; the DO server
+ * verifies it with firebase-admin and looks up role in MySQL `users`.
+ *
+ * Configure via .env:
+ *   VITE_API_URL=https://api.printforge.example.com
  */
+import { auth } from "@/lib/firebase";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://api.nexus3d.example.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.printforge.example.com";
 
 type Method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface RequestOpts {
   method?: Method;
   body?: unknown;
-  auth?: boolean;
+  authed?: boolean;
   headers?: Record<string, string>;
 }
-
-const TOKEN_KEY = "nexus_jwt";
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
-export const setToken = (t: string | null) => {
-  if (t) localStorage.setItem(TOKEN_KEY, t);
-  else localStorage.removeItem(TOKEN_KEY);
-};
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(opts.headers ?? {}),
   };
-  if (opts.auth) {
-    const token = getToken();
+  if (opts.authed) {
+    const token = await auth.currentUser?.getIdToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
   const res = await fetch(`${API_URL}${path}`, {
@@ -48,54 +45,79 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/* ───────────── Auth ───────────── */
-export interface AuthResponse { token: string; user: { id: string; email: string; name: string; role: "user" | "admin" } }
-
-export const auth = {
-  login: (email: string, password: string) =>
-    request<AuthResponse>("/auth/login", { method: "POST", body: { email, password } }),
-  register: (name: string, email: string, password: string) =>
-    request<AuthResponse>("/auth/register", { method: "POST", body: { name, email, password } }),
-  me: () => request<AuthResponse["user"]>("/auth/me", { auth: true }),
+// Legacy token helpers retained so existing imports compile.
+const TOKEN_KEY = "printforge_jwt";
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string | null) => {
+  if (t) localStorage.setItem(TOKEN_KEY, t);
+  else localStorage.removeItem(TOKEN_KEY);
 };
 
-/* ───────────── Products ───────────── */
+/* ──────────── Products ──────────── */
+export interface ApiProduct {
+  id: number; name: string; tagline: string; description: string;
+  price: number; image_url: string; category_id: number | null;
+  materials: string; stock: number; rating: number; is_active: number;
+}
 export const productsApi = {
-  list: () => request<unknown[]>("/products"),
-  get: (id: string) => request<unknown>(`/products/${id}`),
-  create: (data: unknown) => request("/admin/products", { method: "POST", body: data, auth: true }),
-  update: (id: string, data: unknown) => request(`/admin/products/${id}`, { method: "PUT", body: data, auth: true }),
-  remove: (id: string) => request(`/admin/products/${id}`, { method: "DELETE", auth: true }),
+  list:    ()                       => request<ApiProduct[]>("/products"),
+  get:     (id: number | string)    => request<ApiProduct>(`/products/${id}`),
+  create:  (data: Partial<ApiProduct>) => request<ApiProduct>("/admin/products", { method: "POST", body: data, authed: true }),
+  update:  (id: number, data: Partial<ApiProduct>) => request<ApiProduct>(`/admin/products/${id}`, { method: "PUT", body: data, authed: true }),
+  remove:  (id: number)             => request<void>(`/admin/products/${id}`, { method: "DELETE", authed: true }),
 };
 
-/* ───────────── Orders / Razorpay ───────────── */
-export interface RazorpayOrder { orderId: string; amount: number; currency: string; key: string }
-
+/* ──────────── Orders ──────────── */
+export interface ApiOrder {
+  id: number; order_number: string; customer_name: string; customer_email: string;
+  total_amount: number; payment_status: "pending" | "paid" | "failed" | "refunded";
+  status: "pending" | "printing" | "shipped" | "delivered" | "cancelled";
+  payment_method: "upi_qr" | "razorpay" | "cod"; created_at: string;
+}
 export const orders = {
-  createRazorpay: (amount: number, currency = "INR") =>
-    request<RazorpayOrder>("/orders/create-razorpay-order", { method: "POST", body: { amount, currency }, auth: true }),
-  list: () => request<unknown[]>("/admin/orders", { auth: true }),
-  updateStatus: (id: string, status: "pending" | "printing" | "shipped" | "delivered") =>
-    request(`/admin/orders/${id}/status`, { method: "PATCH", body: { status }, auth: true }),
+  create: (data: unknown) => request<ApiOrder>("/orders", { method: "POST", body: data }),
+  list:   () => request<ApiOrder[]>("/admin/orders", { authed: true }),
+  updateStatus: (id: number, status: ApiOrder["status"]) =>
+    request<ApiOrder>(`/admin/orders/${id}/status`, { method: "PATCH", body: { status }, authed: true }),
+  markPaid: (id: number, payment_ref: string) =>
+    request<ApiOrder>(`/admin/orders/${id}/paid`, { method: "PATCH", body: { payment_ref }, authed: true }),
 };
 
-/* ───────────── STL Upload ───────────── */
+/* ──────────── Quotes / STL ──────────── */
 export const stl = {
-  // Server returns a presigned URL to upload directly to DigitalOcean Spaces
   presign: (filename: string, sizeBytes: number) =>
     request<{ uploadUrl: string; fileUrl: string }>("/stl/presign", {
-      method: "POST",
-      body: { filename, sizeBytes },
-      auth: true,
+      method: "POST", body: { filename, sizeBytes }, authed: true,
     }),
   quote: (fileUrl: string, material: string, infill: number) =>
     request<{ price: number; weightGrams: number; printHours: number }>("/stl/quote", {
-      method: "POST",
-      body: { fileUrl, material, infill },
-      auth: true,
+      method: "POST", body: { fileUrl, material, infill }, authed: true,
     }),
 };
+export const quotesApi = {
+  list: () => request<unknown[]>("/admin/quotes", { authed: true }),
+  create: (data: unknown) => request("/quotes", { method: "POST", body: data }),
+};
 
+/* ──────────── Enquiries ──────────── */
+export const enquiriesApi = {
+  list: () => request<unknown[]>("/admin/enquiries", { authed: true }),
+  create: (data: unknown) => request("/enquiries", { method: "POST", body: data }),
+};
+
+/* ──────────── Users (admin) ──────────── */
 export const adminApi = {
-  users: () => request<unknown[]>("/admin/users", { auth: true }),
+  users: () => request<unknown[]>("/admin/users", { authed: true }),
+  stats: () => request<{ revenue: number; orders: number; products: number; users: number }>("/admin/stats", { authed: true }),
+};
+
+/* ──────────── Settings (admin) ──────────── */
+export interface AppSettings {
+  upi_id: string; upi_payee_name: string; store_name: string;
+  store_currency: string; contact_email: string; contact_phone: string;
+}
+export const settingsApi = {
+  get:    () => request<AppSettings>("/settings"),
+  update: (data: Partial<AppSettings>) =>
+    request<AppSettings>("/admin/settings", { method: "PUT", body: data, authed: true }),
 };
