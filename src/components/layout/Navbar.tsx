@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Moon, Sun, ShoppingCart, User, Box } from "lucide-react";
+import { Menu, X, Moon, Sun, ShoppingCart, User, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
+import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -14,6 +16,7 @@ const links = [
 
 export const Navbar = () => {
   const { theme, toggle } = useTheme();
+  const { user, isAdmin, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
@@ -41,17 +44,7 @@ export const Navbar = () => {
             scrolled && "shadow-elegant"
           )}
         >
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-aurora rounded-lg blur-md opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative h-8 w-8 rounded-lg bg-aurora flex items-center justify-center">
-                <Box className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-              </div>
-            </div>
-            <span className="font-display text-lg font-bold tracking-tight">
-              Nexus<span className="text-gradient">3D</span>
-            </span>
-          </Link>
+          <Logo />
 
           <div className="hidden md:flex items-center gap-1">
             {links.map((l) => (
@@ -75,12 +68,26 @@ export const Navbar = () => {
             <Button variant="ghost" size="icon" className="rounded-lg hidden sm:flex" aria-label="Cart">
               <ShoppingCart className="h-4 w-4" />
             </Button>
-            <Link to="/login" className="hidden sm:block">
-              <Button variant="aurora" size="sm" className="gap-1.5">
-                <User className="h-4 w-4" />
-                Sign in
-              </Button>
-            </Link>
+            {user ? (
+              <div className="hidden sm:flex items-center gap-1.5">
+                {isAdmin && (
+                  <Link to="/admin">
+                    <Button variant="aurora" size="sm" className="gap-1.5">
+                      <LayoutDashboard className="h-4 w-4" /> Admin
+                    </Button>
+                  </Link>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => logout()} className="gap-1.5">
+                  <LogOut className="h-4 w-4" /> Sign out
+                </Button>
+              </div>
+            ) : (
+              <Link to="/login" className="hidden sm:block">
+                <Button variant="aurora" size="sm" className="gap-1.5">
+                  <User className="h-4 w-4" /> Sign in
+                </Button>
+              </Link>
+            )}
             <Button variant="ghost" size="icon" className="md:hidden rounded-lg" onClick={() => setOpen((o) => !o)} aria-label="Menu">
               {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>

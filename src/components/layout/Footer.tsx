@@ -1,18 +1,12 @@
 import { Link } from "react-router-dom";
-import { Box, Github, Twitter, Instagram } from "lucide-react";
+import { Github, Twitter, Instagram } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 export const Footer = () => (
   <footer className="border-t border-border/50 mt-32">
     <div className="container py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
       <div className="col-span-2 md:col-span-1">
-        <Link to="/" className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-aurora flex items-center justify-center">
-            <Box className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-          </div>
-          <span className="font-display text-lg font-bold">
-            Nexus<span className="text-gradient">3D</span>
-          </span>
-        </Link>
+        <div className="mb-4"><Logo /></div>
         <p className="text-sm text-muted-foreground max-w-xs">
           Premium 3D printing on demand. Built for makers, engineers, and dreamers.
         </p>
@@ -44,8 +38,8 @@ export const Footer = () => (
     </div>
     <div className="border-t border-border/50">
       <div className="container py-6 text-xs text-muted-foreground flex flex-col sm:flex-row justify-between gap-2">
-        <span>© {new Date().getFullYear()} Nexus3D. All rights reserved.</span>
-        <span>Crafted with precision · Powered by Razorpay</span>
+        <span>© {new Date().getFullYear()} PrintForge. All rights reserved.</span>
+        <span>Crafted with precision · UPI payments</span>
       </div>
     </div>
   </footer>

@@ -6,12 +6,12 @@ import { toast } from "sonner";
 type Status = "pending" | "printing" | "shipped" | "delivered";
 
 const orders: { id: string; customer: string; item: string; amount: string; status: Status }[] = [
-  { id: "#NX-2847", customer: "Sarah Chen", item: "Voronoi Lamp Shade · PLA", amount: "$89", status: "printing" },
-  { id: "#NX-2846", customer: "Marcus Webb", item: "Custom Dragon · ABS", amount: "$156", status: "shipped" },
-  { id: "#NX-2845", customer: "Aiko Tanaka", item: "Hex Planter ×6 · PLA", amount: "$144", status: "pending" },
-  { id: "#NX-2844", customer: "Liam O'Brien", item: "Drone Frame X4 · ABS", amount: "$129", status: "delivered" },
-  { id: "#NX-2843", customer: "Priya Sharma", item: "Lithophane Frame · Resin", amount: "$55", status: "printing" },
-  { id: "#NX-2842", customer: "Diego Costa", item: "Cyberpunk Helmet · PLA", amount: "$219", status: "pending" },
+  { id: "#PF-2847", customer: "Anaya Sharma",  item: "Voronoi Lamp Shade · PLA",   amount: "₹899",  status: "printing" },
+  { id: "#PF-2846", customer: "Karthik R.",    item: "Custom Dragon · ABS",        amount: "₹1,560", status: "shipped" },
+  { id: "#PF-2845", customer: "Meera P.",      item: "Hex Planter ×6 · PLA",       amount: "₹1,440", status: "pending" },
+  { id: "#PF-2844", customer: "Vikram J.",     item: "Drone Frame X4 · ABS",       amount: "₹1,290", status: "delivered" },
+  { id: "#PF-2843", customer: "Priya Sharma",  item: "Lithophane Frame · Resin",   amount: "₹599",  status: "printing" },
+  { id: "#PF-2842", customer: "Diego Costa",   item: "Cyberpunk Helmet · PLA",     amount: "₹2,190", status: "pending" },
 ];
 
 const statusOrder: Status[] = ["pending", "printing", "shipped", "delivered"];
