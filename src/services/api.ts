@@ -2,7 +2,8 @@
  * PrintForge API Service Layer
  * Designed for a REST backend hosted on DigitalOcean (Node/Express)
  * that connects to the Hostinger MySQL database (see database/mysql.sql).
- * STL files upload directly to DigitalOcean Spaces; only URLs are stored.
+ * Product images and STL files are stored as BLOBs in MySQL and
+ * streamed back by the API at /products/:id/image and /stl/:id/file.
  *
  * Authentication: Firebase Auth on the client. The frontend sends the
  * Firebase ID token as Authorization: Bearer <token>; the DO server
@@ -13,7 +14,10 @@
  */
 import { auth } from "@/lib/firebase";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://api.printforge.example.com";
+export const API_URL = import.meta.env.VITE_API_URL || "https://api.printforge.example.com";
+
+/** Build absolute URL for a product image served by the DO API */
+export const productImageUrl = (id: number | string) => `${API_URL}/products/${id}/image`;
 
 type Method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
@@ -56,14 +60,31 @@ export const setToken = (t: string | null) => {
 /* ──────────── Products ──────────── */
 export interface ApiProduct {
   id: number; name: string; tagline: string; description: string;
-  price: number; image_url: string; category_id: number | null;
+  price: number; image_url: string; image_mime: string | null; category_id: number | null;
   materials: string; stock: number; rating: number; is_active: number;
 }
 export const productsApi = {
   list:    ()                       => request<ApiProduct[]>("/products"),
   get:     (id: number | string)    => request<ApiProduct>(`/products/${id}`),
-  create:  (data: Partial<ApiProduct>) => request<ApiProduct>("/admin/products", { method: "POST", body: data, authed: true }),
-  update:  (id: number, data: Partial<ApiProduct>) => request<ApiProduct>(`/admin/products/${id}`, { method: "PUT", body: data, authed: true }),
+  /** Create product. Pass a FormData with text fields + an `image` file to upload the BLOB. */
+  create:  async (form: FormData) => {
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch(`${API_URL}/admin/products`, {
+      method: "POST", body: form,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return res.json() as Promise<{ id: number }>;
+  },
+  update:  async (id: number, form: FormData) => {
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch(`${API_URL}/admin/products/${id}`, {
+      method: "PUT", body: form,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return res.json();
+  },
   remove:  (id: number)             => request<void>(`/admin/products/${id}`, { method: "DELETE", authed: true }),
 };
 
@@ -85,13 +106,22 @@ export const orders = {
 
 /* ──────────── Quotes / STL ──────────── */
 export const stl = {
-  presign: (filename: string, sizeBytes: number) =>
-    request<{ uploadUrl: string; fileUrl: string }>("/stl/presign", {
-      method: "POST", body: { filename, sizeBytes }, authed: true,
-    }),
-  quote: (fileUrl: string, material: string, infill: number) =>
+  /** Upload an STL file as a BLOB. Returns the inserted row id. */
+  upload: async (file: File) => {
+    const token = await auth.currentUser?.getIdToken();
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_URL}/stl/upload`, {
+      method: "POST", body: fd,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return res.json() as Promise<{ id: number; filename: string; size_bytes: number }>;
+  },
+  fileUrl: (id: number | string) => `${API_URL}/stl/${id}/file`,
+  quote: (sizeBytes: number, material: string, infill: number) =>
     request<{ price: number; weightGrams: number; printHours: number }>("/stl/quote", {
-      method: "POST", body: { fileUrl, material, infill }, authed: true,
+      method: "POST", body: { sizeBytes, material, infill }, authed: true,
     }),
 };
 export const quotesApi = {
