@@ -5,12 +5,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/context/CartContext";
 import Index from "./pages/Index.tsx";
 import Shop from "./pages/Shop.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import Upload from "./pages/Upload.tsx";
 import Login from "./pages/Login.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import Cart from "./pages/Cart.tsx";
+import MyOrders from "./pages/MyOrders.tsx";
 import AdminOverview from "./pages/admin/AdminOverview.tsx";
 import AdminInventory from "./pages/admin/AdminInventory.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
@@ -29,6 +32,7 @@ const App = () => (
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
+         <CartProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -37,7 +41,9 @@ const App = () => (
               <Route path="/shop" element={<Shop />} />
               <Route path="/shop/:id" element={<ProductDetail />} />
               <Route path="/upload" element={<Upload />} />
+              <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
+              <Route path="/my-orders" element={<MyOrders />} />
               <Route path="/login" element={<Login />} />
               <Route path="/admin" element={<AdminOverview />} />
               <Route path="/admin/inventory" element={<AdminInventory />} />
@@ -52,6 +58,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>
+         </CartProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
