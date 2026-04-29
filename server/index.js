@@ -1,0 +1,338 @@
+/**
+ * PrintForge API — DigitalOcean Express server
+ * ============================================
+ * Connects to Hostinger MySQL and exposes a REST API consumed
+ * by the Lovable frontend. Admin routes are protected by
+ * Firebase ID-token verification + a hardcoded admin UID list.
+ *
+ * Run:  node index.js
+ * Env:  see .env.example
+ */
+require('dotenv').config();
+
+const express = require('express');
+const cors    = require('cors');
+const multer  = require('multer');
+const mysql   = require('mysql2/promise');
+const admin   = require('firebase-admin');
+const fs      = require('fs');
+const path    = require('path');
+
+// ─── Firebase Admin init ───────────────────────────────────
+function loadServiceAccount() {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  }
+  const p = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json';
+  if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  throw new Error('Firebase service account not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH.');
+}
+admin.initializeApp({ credential: admin.credential.cert(loadServiceAccount()) });
+
+// ─── MySQL pool (Hostinger) ────────────────────────────────
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST,
+  port:     Number(process.env.DB_PORT || 3306),
+  user:     process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  // Allow large STL/image BLOB payloads
+  // (Hostinger may also need max_allowed_packet bumped)
+});
+
+// ─── App ───────────────────────────────────────────────────
+const app = express();
+
+const ORIGINS = (process.env.CORS_ORIGINS || '*')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ORIGINS.includes('*') || ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error('CORS blocked: ' + origin));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Multer in-memory storage for image + STL uploads (BLOBs)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 50 * 1024 * 1024 }, // 50 MB
+});
+
+const ADMIN_UIDS = (process.env.ADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+// ─── Auth middleware ───────────────────────────────────────
+async function authOptional(req, _res, next) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (token) {
+    try { req.user = await admin.auth().verifyIdToken(token); } catch { /* ignore */ }
+  }
+  next();
+}
+async function authRequired(req, res, next) {
+  await authOptional(req, res, () => {});
+  if (!req.user) return res.status(401).json({ error: 'Auth required' });
+  next();
+}
+function adminRequired(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Auth required' });
+  if (!ADMIN_UIDS.includes(req.user.uid)) return res.status(403).json({ error: 'Admin only' });
+  next();
+}
+
+app.use(authOptional);
+
+// Strip BLOB columns from product rows in list responses
+function stripBlobs(row) {
+  if (!row) return row;
+  const { image_blob, ...rest } = row;
+  return { ...rest, image_url: `/products/${row.id}/image` };
+}
+
+// ─── Health ────────────────────────────────────────────────
+app.get('/health', async (_req, res) => {
+  try { await pool.query('SELECT 1'); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════
+//                       PRODUCTS
+// ════════════════════════════════════════════════════════════
+app.get('/products', async (_req, res) => {
+  const [rows] = await pool.query(
+    'SELECT id,name,tagline,description,price,category_id,image_mime,materials,stock,rating,is_active,created_at,updated_at FROM products WHERE is_active=1 ORDER BY id DESC'
+  );
+  res.json(rows.map(stripBlobs));
+});
+
+app.get('/products/:id', async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT id,name,tagline,description,price,category_id,image_mime,materials,stock,rating,is_active,created_at,updated_at FROM products WHERE id=?',
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(stripBlobs(rows[0]));
+});
+
+// Stream the product image BLOB
+app.get('/products/:id/image', async (req, res) => {
+  const [rows] = await pool.query('SELECT image_blob, image_mime FROM products WHERE id=?', [req.params.id]);
+  const r = rows[0];
+  if (!r || !r.image_blob) return res.status(404).end();
+  res.setHeader('Content-Type', r.image_mime || 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.end(r.image_blob);
+});
+
+// Admin: create product (multipart with `image` file field)
+app.post('/admin/products', authRequired, adminRequired, upload.single('image'), async (req, res) => {
+  const { name, tagline, description, price, category_id, materials, stock, rating } = req.body;
+  const blob = req.file ? req.file.buffer : null;
+  const mime = req.file ? req.file.mimetype : null;
+  const [r] = await pool.query(
+    `INSERT INTO products (name,tagline,description,price,category_id,image_blob,image_mime,materials,stock,rating)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [name, tagline || null, description || null, price, category_id || null, blob, mime, materials || 'PLA', stock || 0, rating || 0]
+  );
+  res.json({ id: r.insertId });
+});
+
+// Admin: update product (image optional)
+app.put('/admin/products/:id', authRequired, adminRequired, upload.single('image'), async (req, res) => {
+  const { name, tagline, description, price, category_id, materials, stock, rating, is_active } = req.body;
+  const fields = [];
+  const vals   = [];
+  const set = (k, v) => { if (v !== undefined) { fields.push(`${k}=?`); vals.push(v); } };
+  set('name', name); set('tagline', tagline); set('description', description);
+  set('price', price); set('category_id', category_id); set('materials', materials);
+  set('stock', stock); set('rating', rating); set('is_active', is_active);
+  if (req.file) { fields.push('image_blob=?', 'image_mime=?'); vals.push(req.file.buffer, req.file.mimetype); }
+  if (!fields.length) return res.json({ ok: true });
+  vals.push(req.params.id);
+  await pool.query(`UPDATE products SET ${fields.join(',')} WHERE id=?`, vals);
+  res.json({ ok: true });
+});
+
+app.delete('/admin/products/:id', authRequired, adminRequired, async (req, res) => {
+  await pool.query('DELETE FROM products WHERE id=?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════
+//                       ORDERS
+// ════════════════════════════════════════════════════════════
+app.post('/orders', async (req, res) => {
+  const { customer_name, customer_email, customer_phone, shipping_address, total_amount, payment_method = 'upi_qr', items = [], notes } = req.body;
+  const order_number = 'PF-' + Date.now();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [r] = await conn.query(
+      `INSERT INTO orders (order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,payment_method,notes)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [order_number, customer_name, customer_email, customer_phone || null, shipping_address || null, total_amount, payment_method, notes || null]
+    );
+    const orderId = r.insertId;
+    for (const it of items) {
+      await conn.query(
+        `INSERT INTO order_items (order_id,product_id,product_name,material,quantity,unit_price,subtotal)
+         VALUES (?,?,?,?,?,?,?)`,
+        [orderId, it.product_id || null, it.product_name, it.material || null, it.quantity, it.unit_price, it.unit_price * it.quantity]
+      );
+    }
+    await conn.commit();
+    res.json({ id: orderId, order_number });
+  } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); }
+  finally { conn.release(); }
+});
+
+app.get('/admin/orders', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+  res.json(rows);
+});
+
+app.patch('/admin/orders/:id/status', authRequired, adminRequired, async (req, res) => {
+  await pool.query('UPDATE orders SET status=? WHERE id=?', [req.body.status, req.params.id]);
+  res.json({ ok: true });
+});
+
+app.patch('/admin/orders/:id/paid', authRequired, adminRequired, async (req, res) => {
+  await pool.query("UPDATE orders SET payment_status='paid', payment_ref=? WHERE id=?", [req.body.payment_ref || null, req.params.id]);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════
+//                STL UPLOADS  +  QUOTES
+// ════════════════════════════════════════════════════════════
+// Upload STL as BLOB
+app.post('/stl/upload', authRequired, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const [r] = await pool.query(
+    `INSERT INTO stl_uploads (user_id, filename, mime_type, size_bytes, file_blob)
+     VALUES (NULL, ?, ?, ?, ?)`,
+    [req.file.originalname, req.file.mimetype || 'model/stl', req.file.size, req.file.buffer]
+  );
+  res.json({ id: r.insertId, filename: req.file.originalname, size_bytes: req.file.size });
+});
+
+// Download/stream STL
+app.get('/stl/:id/file', async (req, res) => {
+  const [rows] = await pool.query('SELECT filename, mime_type, file_blob FROM stl_uploads WHERE id=?', [req.params.id]);
+  const r = rows[0];
+  if (!r) return res.status(404).end();
+  res.setHeader('Content-Type', r.mime_type || 'model/stl');
+  res.setHeader('Content-Disposition', `attachment; filename="${r.filename}"`);
+  res.end(r.file_blob);
+});
+
+// Naive quote estimator (replace with real slicer logic later)
+app.post('/stl/quote', authRequired, async (req, res) => {
+  const { sizeBytes = 0, material = 'PLA', infill = 20 } = req.body;
+  const weightGrams = Math.max(5, sizeBytes / 1024 / 50); // dummy
+  const matFactor   = material === 'Resin' ? 4.0 : material === 'ABS' ? 2.2 : 1.8;
+  const price       = Math.round(weightGrams * matFactor * (1 + infill / 200));
+  const printHours  = +(weightGrams / 18).toFixed(2);
+  res.json({ price, weightGrams: +weightGrams.toFixed(2), printHours });
+});
+
+app.post('/quotes', async (req, res) => {
+  const { user_id = null, stl_upload_id = null, customer_name, customer_email, customer_phone,
+          material, infill, weight_grams, print_hours, estimated_price, notes } = req.body;
+  const [r] = await pool.query(
+    `INSERT INTO quotes (user_id,stl_upload_id,customer_name,customer_email,customer_phone,material,infill,weight_grams,print_hours,estimated_price,notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [user_id, stl_upload_id, customer_name, customer_email, customer_phone || null, material, infill, weight_grams, print_hours, estimated_price, notes || null]
+  );
+  res.json({ id: r.insertId });
+});
+
+app.get('/admin/quotes', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query('SELECT * FROM quotes ORDER BY created_at DESC');
+  res.json(rows);
+});
+
+// ════════════════════════════════════════════════════════════
+//                       ENQUIRIES
+// ════════════════════════════════════════════════════════════
+app.post('/enquiries', async (req, res) => {
+  const { name, email, phone, subject, message } = req.body;
+  const [r] = await pool.query(
+    'INSERT INTO enquiries (name,email,phone,subject,message) VALUES (?,?,?,?,?)',
+    [name, email, phone || null, subject || null, message]
+  );
+  res.json({ id: r.insertId });
+});
+
+app.get('/admin/enquiries', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query('SELECT * FROM enquiries ORDER BY created_at DESC');
+  res.json(rows);
+});
+
+// ════════════════════════════════════════════════════════════
+//                       USERS / STATS
+// ════════════════════════════════════════════════════════════
+// Sync Firebase user → MySQL `users` (called after sign-in / sign-up)
+app.post('/users/sync', authRequired, async (req, res) => {
+  const { display_name, phone } = req.body || {};
+  const role = ADMIN_UIDS.includes(req.user.uid) ? 'admin' : 'user';
+  await pool.query(
+    `INSERT INTO users (firebase_uid,email,display_name,phone,role)
+     VALUES (?,?,?,?,?)
+     ON DUPLICATE KEY UPDATE
+       email=VALUES(email),
+       display_name=COALESCE(VALUES(display_name), display_name),
+       phone=COALESCE(VALUES(phone), phone),
+       role=VALUES(role)`,
+    [req.user.uid, req.user.email || '', display_name || req.user.name || null, phone || null, role]
+  );
+  res.json({ ok: true, role });
+});
+
+app.get('/admin/users', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
+  res.json(rows);
+});
+
+app.get('/admin/stats', authRequired, adminRequired, async (_req, res) => {
+  const [[rev]]   = await pool.query("SELECT COALESCE(SUM(total_amount),0) AS revenue FROM orders WHERE payment_status='paid'");
+  const [[ord]]   = await pool.query('SELECT COUNT(*) AS c FROM orders');
+  const [[prod]]  = await pool.query('SELECT COUNT(*) AS c FROM products WHERE is_active=1');
+  const [[usr]]   = await pool.query('SELECT COUNT(*) AS c FROM users');
+  res.json({ revenue: Number(rev.revenue), orders: ord.c, products: prod.c, users: usr.c });
+});
+
+// ════════════════════════════════════════════════════════════
+//                       SETTINGS
+// ════════════════════════════════════════════════════════════
+app.get('/settings', async (_req, res) => {
+  const [rows] = await pool.query('SELECT setting_key, setting_value FROM settings');
+  const out = {};
+  rows.forEach(r => { out[r.setting_key] = r.setting_value; });
+  res.json(out);
+});
+
+app.put('/admin/settings', authRequired, adminRequired, async (req, res) => {
+  const entries = Object.entries(req.body || {});
+  for (const [k, v] of entries) {
+    await pool.query(
+      'INSERT INTO settings (setting_key, setting_value) VALUES (?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)',
+      [k, v]
+    );
+  }
+  res.json({ ok: true });
+});
+
+// ─── Error handler ─────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message || 'Server error' });
+});
+
+const PORT = Number(process.env.PORT || 8080);
+app.listen(PORT, () => console.log(`PrintForge API listening on :${PORT}`));
