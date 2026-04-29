@@ -1,17 +1,22 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Star, Truck, ShieldCheck, ShoppingCart, Box } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { products } from "@/data/products";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 
 const ProductDetail = () => {
   const { id } = useParams();
   const product = products.find((p) => p.id === id);
   const [material, setMaterial] = useState(product?.materials[0] ?? "PLA");
   const [qty, setQty] = useState(1);
+  const { user } = useAuth();
+  const { add } = useCart();
+  const navigate = useNavigate();
 
   if (!product) {
     return (
@@ -25,7 +30,27 @@ const ProductDetail = () => {
   }
 
   const materialMultiplier = { PLA: 1, ABS: 1.15, Resin: 1.4 } as const;
-  const total = (product.price * materialMultiplier[material as keyof typeof materialMultiplier] * qty).toFixed(2);
+  const unitPrice = Math.round(product.price * materialMultiplier[material as keyof typeof materialMultiplier]);
+  const total = (unitPrice * qty).toFixed(0);
+
+  const requireAuth = (then: () => void) => {
+    if (!user) {
+      toast.info("Please sign in to continue");
+      navigate("/login", { state: { from: `/shop/${product.id}` } });
+      return;
+    }
+    then();
+  };
+
+  const addToCart = () => requireAuth(() => {
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    toast.success(`${product.name} added to cart`, { description: `${qty} × ${material}` });
+  });
+
+  const buyNow = () => requireAuth(() => {
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    navigate("/checkout");
+  });
 
   return (
     <PageShell>
@@ -100,15 +125,16 @@ const ProductDetail = () => {
             <div className="glass-card rounded-2xl p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs text-muted-foreground">Total</div>
-                <div className="font-display text-3xl font-bold text-gradient">${total}</div>
+                <div className="font-display text-3xl font-bold text-gradient">₹{total}</div>
               </div>
-              <Button
-                variant="aurora"
-                size="lg"
-                onClick={() => toast.success(`${product.name} added to cart`, { description: `${qty} × ${material}` })}
-              >
-                <ShoppingCart className="h-4 w-4" /> Add to cart
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="glass" size="lg" onClick={addToCart}>
+                  <ShoppingCart className="h-4 w-4" /> Add to cart
+                </Button>
+                <Button variant="aurora" size="lg" onClick={buyNow}>
+                  Buy now
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-4">
