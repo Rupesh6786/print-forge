@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Moon, Sun, ShoppingCart, User, LogOut, LayoutDashboard } from "lucide-react";
+import { Menu, X, Moon, Sun, ShoppingCart, User, LogOut, LayoutDashboard, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const links = [
 export const Navbar = () => {
   const { theme, toggle } = useTheme();
   const { user, isAdmin, logout } = useAuth();
+  const { count } = useCart();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
@@ -65,11 +67,23 @@ export const Navbar = () => {
             <Button variant="ghost" size="icon" onClick={toggle} className="rounded-lg" aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon" className="rounded-lg hidden sm:flex" aria-label="Cart">
-              <ShoppingCart className="h-4 w-4" />
-            </Button>
+            <Link to="/cart" className="hidden sm:block">
+              <Button variant="ghost" size="icon" className="rounded-lg relative" aria-label="Cart">
+                <ShoppingCart className="h-4 w-4" />
+                {count > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-aurora text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                    {count}
+                  </span>
+                )}
+              </Button>
+            </Link>
             {user ? (
               <div className="hidden sm:flex items-center gap-1.5">
+                <Link to="/my-orders">
+                  <Button variant="ghost" size="sm" className="gap-1.5">
+                    <Package className="h-4 w-4" /> My orders
+                  </Button>
+                </Link>
                 {isAdmin && (
                   <Link to="/admin">
                     <Button variant="aurora" size="sm" className="gap-1.5">
