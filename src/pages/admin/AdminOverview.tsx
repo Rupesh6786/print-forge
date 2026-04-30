@@ -1,24 +1,12 @@
+import { useEffect, useState } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { TrendingUp, ShoppingBag, Package, Users, IndianRupee, Wrench, FileText, Mail } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-
-const stats = [
-  { label: "Total revenue", value: "₹2,84,500", change: "+12.4%", icon: IndianRupee, accent: "from-emerald-500/20 to-emerald-500/5" },
-  { label: "Total orders",  value: "1,284",    change: "+8.2%",  icon: ShoppingBag, accent: "from-blue-500/20 to-blue-500/5" },
-  { label: "Total products", value: "62",       change: "+3",     icon: Package,     accent: "from-violet-500/20 to-violet-500/5" },
-  { label: "Total users",   value: "934",      change: "+24",    icon: Users,       accent: "from-pink-500/20 to-pink-500/5" },
-];
+import { adminApi, ordersApi } from "@/services/api";
 
 const revenueData = [
   { d: "Mon", v: 14200 }, { d: "Tue", v: 18900 }, { d: "Wed", v: 16400 },
   { d: "Thu", v: 22500 }, { d: "Fri", v: 28100 }, { d: "Sat", v: 31200 }, { d: "Sun", v: 26800 },
-];
-
-const recentOrders = [
-  { id: "PF12039", customer: "Anaya S.",   amount: 899,  status: "printing"  },
-  { id: "PF12038", customer: "Karthik R.", amount: 349,  status: "shipped"   },
-  { id: "PF12037", customer: "Meera P.",   amount: 1248, status: "pending"   },
-  { id: "PF12036", customer: "Vikram J.",  amount: 429,  status: "delivered" },
 ];
 
 const statusStyle: Record<string, string> = {
@@ -28,7 +16,24 @@ const statusStyle: Record<string, string> = {
   delivered: "bg-emerald-500/10 text-emerald-500",
 };
 
-const AdminOverview = () => (
+const AdminOverview = () => {
+  const [s, setS] = useState({ revenue: 0, orders: 0, products: 0, users: 0 });
+  const [recent, setRecent] = useState<{ id: string; customer: string; amount: number; status: string }[]>([]);
+  useEffect(() => {
+    adminApi.stats().then(setS).catch(() => {});
+    ordersApi.list()
+      .then((r) => setRecent(r.slice(0, 4).map((o) => ({
+        id: o.order_number, customer: o.customer_name, amount: Number(o.total_amount), status: o.status,
+      }))))
+      .catch(() => {});
+  }, []);
+  const stats = [
+    { label: "Total revenue", value: `₹${s.revenue.toLocaleString("en-IN")}`, change: "live", icon: IndianRupee, accent: "from-emerald-500/20 to-emerald-500/5" },
+    { label: "Total orders",  value: String(s.orders),    change: "live",  icon: ShoppingBag, accent: "from-blue-500/20 to-blue-500/5" },
+    { label: "Total products", value: String(s.products), change: "live",  icon: Package,     accent: "from-violet-500/20 to-violet-500/5" },
+    { label: "Total users",   value: String(s.users),     change: "live",  icon: Users,       accent: "from-pink-500/20 to-pink-500/5" },
+  ];
+  return (
   <AdminLayout>
     <div className="space-y-8">
       <div>
@@ -107,7 +112,8 @@ const AdminOverview = () => (
         <div className="glass-card rounded-2xl p-5">
           <h2 className="font-display font-semibold mb-3">Recent orders</h2>
           <div className="space-y-2">
-            {recentOrders.map((o) => (
+            {recent.length === 0 && <div className="text-xs text-muted-foreground py-4 text-center">No recent orders.</div>}
+            {recent.map((o) => (
               <div key={o.id} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
                 <div>
                   <div className="text-sm font-medium">{o.customer}</div>
@@ -124,6 +130,7 @@ const AdminOverview = () => (
       </div>
     </div>
   </AdminLayout>
-);
+  );
+};
 
 export default AdminOverview;
