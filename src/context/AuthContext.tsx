@@ -8,6 +8,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { auth, isAdminUid } from "@/lib/firebase";
+import { usersApi } from "@/services/api";
 
 interface AuthCtx {
   user: User | null;
@@ -28,6 +29,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
+      if (u) {
+        // Sync Firebase user → MySQL `users` (best-effort, non-blocking)
+        usersApi
+          .sync({ display_name: u.displayName ?? undefined })
+          .catch(() => { /* API may be offline in preview */ });
+      }
     });
     return unsub;
   }, []);
