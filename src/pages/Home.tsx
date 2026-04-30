@@ -168,6 +168,7 @@ const Home = () => {
       </div>
     </section>
   </PageShell>
-);
+  );
+};
 
 export default Home;
