@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Star, Truck, ShieldCheck, ShoppingCart, Box } from "lucide-react";
+import { ArrowLeft, Star, Truck, ShieldCheck, ShoppingCart, Box, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
-import { products } from "@/data/products";
+import { products as fallbackProducts, type Product } from "@/data/products";
+import { productsApi } from "@/services/api";
+import { mapApiProduct } from "@/lib/product-mapper";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -11,12 +13,31 @@ import { useCart } from "@/context/CartContext";
 
 const ProductDetail = () => {
   const { id } = useParams();
-  const product = products.find((p) => p.id === id);
-  const [material, setMaterial] = useState(product?.materials[0] ?? "PLA");
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [material, setMaterial] = useState<string>("PLA");
   const [qty, setQty] = useState(1);
   const { user } = useAuth();
   const { add } = useCart();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    productsApi.get(id)
+      .then((p) => { if (!cancelled) { const m = mapApiProduct(p); setProduct(m); setMaterial(m.materials[0] ?? "PLA"); } })
+      .catch(() => {
+        const fb = fallbackProducts.find((p) => p.id === id) ?? null;
+        if (!cancelled) { setProduct(fb); setMaterial(fb?.materials[0] ?? "PLA"); }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) {
+    return <PageShell><div className="container py-20 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></PageShell>;
+  }
 
   if (!product) {
     return (
