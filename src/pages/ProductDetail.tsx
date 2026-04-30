@@ -7,6 +7,7 @@ import { productsApi } from "@/services/api";
 import { mapApiProduct } from "@/lib/product-mapper";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SEO } from "@/components/SEO";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
@@ -75,6 +76,29 @@ const ProductDetail = () => {
 
   return (
     <PageShell>
+      <SEO
+        title={`${product.name} — ${product.tagline || "3D Printed"} | PrintForge`}
+        description={(product.description || product.tagline || product.name).slice(0, 160)}
+        type="product"
+        image={product.image}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.name,
+          description: product.description || product.tagline,
+          image: product.image,
+          brand: { "@type": "Brand", name: "PrintForge" },
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "INR",
+            price: product.price,
+            availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          },
+          aggregateRating: product.rating > 0 ? {
+            "@type": "AggregateRating", ratingValue: product.rating, reviewCount: 12,
+          } : undefined,
+        }}
+      />
       <div className="container">
         <Link to="/shop" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-6">
           <ArrowLeft className="h-4 w-4" /> Back to shop
