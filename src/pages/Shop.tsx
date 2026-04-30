@@ -1,25 +1,48 @@
-import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
-import { products } from "@/data/products";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-const categories = ["All", "Home", "Toys", "Office", "Tech", "Cosplay", "Custom"];
+import { productsApi } from "@/services/api";
+import { mapApiProduct } from "@/lib/product-mapper";
+import { products as fallbackProducts } from "@/data/products";
+import type { Product } from "@/data/products";
+import { toast } from "sonner";
 
 const Shop = () => {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
+  const [list, setList] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    productsApi.list()
+      .then((rows) => { if (!cancelled) setList(rows.map(mapApiProduct)); })
+      .catch(() => {
+        if (!cancelled) {
+          setList(fallbackProducts);
+          toast.message("Showing demo catalogue (API unreachable)");
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const categories = useMemo(
+    () => ["All", ...Array.from(new Set(list.map((p) => p.category)))],
+    [list]
+  );
 
   const filtered = useMemo(
     () =>
-      products.filter(
+      list.filter(
         (p) =>
           (cat === "All" || p.category === cat) &&
           (q === "" || p.name.toLowerCase().includes(q.toLowerCase()))
       ),
-    [q, cat]
+    [q, cat, list]
   );
 
   return (
@@ -63,10 +86,14 @@ const Shop = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
-        </div>
-        {filtered.length === 0 && (
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="text-center py-20 text-muted-foreground">No prints match your search.</div>
         )}
       </section>
