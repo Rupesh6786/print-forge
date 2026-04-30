@@ -23,7 +23,7 @@ const AdminSettings = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    settingsApi.get().then(setS).catch(() => { /* keep defaults */ });
+    settingsApi.get().then((d) => setS((prev) => ({ ...prev, ...d }))).catch(() => { /* keep defaults */ });
   }, []);
 
   const update = (k: keyof AppSettings, v: string) => setS((prev) => ({ ...prev, [k]: v }));
