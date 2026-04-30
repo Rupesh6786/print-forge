@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/layout/PageShell";
 import { buildUpiUrl } from "@/lib/upi";
 import { settingsApi } from "@/services/api";
+import { ordersApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { ordersStore, newOrderId, estimatedDelivery } from "@/lib/orders-store";
@@ -67,9 +68,24 @@ const Checkout = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const submitOrder = () => {
+  const submitOrder = async () => {
     if (!name || !email || !address) { toast.error("Please fill name, email and address"); return; }
     if (items.length === 0) { toast.error("Cart is empty"); return; }
+
+    // Try to persist on the API first; always keep a local copy as fallback.
+    try {
+      await ordersApi.create({
+        customer_name: name, customer_email: email, customer_phone: phone,
+        shipping_address: address,
+        total_amount: total,
+        payment_method: "upi_qr",
+        items: items.map((i) => ({
+          product_id: Number(i.productId) || null,
+          product_name: i.name, material: i.material,
+          quantity: i.quantity, unit_price: i.price,
+        })),
+      });
+    } catch { /* preview/offline — fall back to local store */ }
 
     ordersStore.add({
       id: orderId,
