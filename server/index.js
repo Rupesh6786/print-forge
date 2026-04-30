@@ -307,6 +307,67 @@ app.get('/admin/stats', authRequired, adminRequired, async (_req, res) => {
   res.json({ revenue: Number(rev.revenue), orders: ord.c, products: prod.c, users: usr.c });
 });
 
+// Revenue grouped by day for the last 7 days (paid orders only).
+app.get('/admin/revenue/weekly', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query(
+    `SELECT DATE(created_at) AS day, COALESCE(SUM(total_amount),0) AS revenue
+       FROM orders
+      WHERE payment_status='paid'
+        AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+      GROUP BY DATE(created_at)
+      ORDER BY day ASC`
+  );
+  // Build a continuous 7-day series so the chart never has gaps.
+  const map = new Map(rows.map(r => [new Date(r.day).toISOString().slice(0, 10), Number(r.revenue)]));
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    out.push({
+      d: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      v: map.get(key) || 0,
+    });
+  }
+  res.json(out);
+});
+
+// ════════════════════════════════════════════════════════════
+//                       SERVICES
+// ════════════════════════════════════════════════════════════
+app.get('/services', async (_req, res) => {
+  const [rows] = await pool.query(
+    'SELECT id,name,price_label,description,is_active,sort_order,created_at FROM services WHERE is_active=1 ORDER BY sort_order ASC, id ASC'
+  );
+  res.json(rows);
+});
+
+app.post('/admin/services', authRequired, adminRequired, async (req, res) => {
+  const { name, price_label, description, is_active = 1, sort_order = 0 } = req.body || {};
+  if (!name || !price_label) return res.status(400).json({ error: 'name and price_label required' });
+  const [r] = await pool.query(
+    'INSERT INTO services (name, price_label, description, is_active, sort_order) VALUES (?,?,?,?,?)',
+    [name, price_label, description || null, is_active ? 1 : 0, Number(sort_order) || 0]
+  );
+  res.json({ id: r.insertId });
+});
+
+app.put('/admin/services/:id', authRequired, adminRequired, async (req, res) => {
+  const { name, price_label, description, is_active, sort_order } = req.body || {};
+  const fields = []; const vals = [];
+  const set = (k, v) => { if (v !== undefined) { fields.push(`${k}=?`); vals.push(v); } };
+  set('name', name); set('price_label', price_label); set('description', description);
+  set('is_active', is_active); set('sort_order', sort_order);
+  if (!fields.length) return res.json({ ok: true });
+  vals.push(req.params.id);
+  await pool.query(`UPDATE services SET ${fields.join(',')} WHERE id=?`, vals);
+  res.json({ ok: true });
+});
+
+app.delete('/admin/services/:id', authRequired, adminRequired, async (req, res) => {
+  await pool.query('DELETE FROM services WHERE id=?', [req.params.id]);
+  res.json({ ok: true });
+});
+
 // ════════════════════════════════════════════════════════════
 //                       SETTINGS
 // ════════════════════════════════════════════════════════════
