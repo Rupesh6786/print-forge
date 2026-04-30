@@ -131,6 +131,25 @@ export const usersApi = {
 
 export const adminApi = {
   stats: () => request<{ revenue: number; orders: number; products: number; users: number }>("/admin/stats", { authed: true }),
+  revenueWeekly: () =>
+    request<{ d: string; v: number }[]>("/admin/revenue/weekly", { authed: true }),
+};
+
+/* ────────── Services ────────── */
+export interface ApiService {
+  id: number;
+  name: string;
+  price_label: string;
+  description: string | null;
+  is_active: number;
+  sort_order: number;
+  created_at?: string;
+}
+export const servicesApi = {
+  list:   () => request<ApiService[]>("/services"),
+  create: (data: Partial<ApiService>) => request<{ id: number }>("/admin/services", { method: "POST", body: data, authed: true }),
+  update: (id: number, data: Partial<ApiService>) => request<{ ok: true }>(`/admin/services/${id}`, { method: "PUT", body: data, authed: true }),
+  remove: (id: number) => request<{ ok: true }>(`/admin/services/${id}`, { method: "DELETE", authed: true }),
 };
 
 /* ────────── Settings ────────── */

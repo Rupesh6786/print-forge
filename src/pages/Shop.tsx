@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
+import { SEO } from "@/components/SEO";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { productsApi } from "@/services/api";
@@ -47,6 +48,10 @@ const Shop = () => {
 
   return (
     <PageShell>
+      <SEO
+        title="Shop — 3D-Printed Products in PLA, ABS & Resin | PrintForge"
+        description="Browse PrintForge's curated marketplace of 3D-printed lamps, planters, toys, drone frames, and cosplay kits. Printed-to-order in your choice of material."
+      />
       <section className="container">
         <div className="max-w-3xl space-y-3 mb-8 animate-fade-up">
           <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">

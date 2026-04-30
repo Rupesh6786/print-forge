@@ -7,6 +7,7 @@ import { ProductCard } from "@/components/nexus/ProductCard";
 import { featured as fallbackFeatured, type Product } from "@/data/products";
 import { productsApi } from "@/services/api";
 import { mapApiProduct } from "@/lib/product-mapper";
+import { SEO } from "@/components/SEO";
 import heroImage from "@/assets/hero-printer.jpg";
 
 const stats = [
@@ -32,6 +33,18 @@ const Home = () => {
   }, []);
   return (
   <PageShell>
+    <SEO
+      title="PrintForge — Premium 3D Printing Marketplace & Custom STL Service"
+      description="Shop curated 3D-printed products or upload your STL for instant pricing in PLA, ABS, PETG, and resin. 48-hour turnaround, secure UPI checkout, reprint guarantee."
+      jsonLd={{
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "PrintForge",
+        url: "https://printforge.space",
+        logo: "https://printforge.space/og-image.jpg",
+        sameAs: ["https://twitter.com/printforge", "https://instagram.com/printforge"],
+      }}
+    />
     {/* HERO */}
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 grid-bg pointer-events-none" aria-hidden />

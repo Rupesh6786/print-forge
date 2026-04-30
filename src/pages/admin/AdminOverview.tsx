@@ -4,10 +4,14 @@ import { TrendingUp, ShoppingBag, Package, Users, IndianRupee, Wrench, FileText,
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { adminApi, ordersApi } from "@/services/api";
 
-const revenueData = [
-  { d: "Mon", v: 14200 }, { d: "Tue", v: 18900 }, { d: "Wed", v: 16400 },
-  { d: "Thu", v: 22500 }, { d: "Fri", v: 28100 }, { d: "Sat", v: 31200 }, { d: "Sun", v: 26800 },
-];
+const buildEmptyWeek = () => {
+  const out: { d: string; v: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    out.push({ d: d.toLocaleDateString("en-US", { weekday: "short" }), v: 0 });
+  }
+  return out;
+};
 
 const statusStyle: Record<string, string> = {
   pending:   "bg-amber-500/10 text-amber-500",
@@ -19,12 +23,32 @@ const statusStyle: Record<string, string> = {
 const AdminOverview = () => {
   const [s, setS] = useState({ revenue: 0, orders: 0, products: 0, users: 0 });
   const [recent, setRecent] = useState<{ id: string; customer: string; amount: number; status: string }[]>([]);
+  const [revenueData, setRevenueData] = useState<{ d: string; v: number }[]>(buildEmptyWeek());
   useEffect(() => {
     adminApi.stats().then(setS).catch(() => {});
+    adminApi.revenueWeekly()
+      .then((rows) => { if (rows?.length) setRevenueData(rows); })
+      .catch(() => {/* keep empty week */});
     ordersApi.list()
-      .then((r) => setRecent(r.slice(0, 4).map((o) => ({
-        id: o.order_number, customer: o.customer_name, amount: Number(o.total_amount), status: o.status,
-      }))))
+      .then((r) => {
+        setRecent(r.slice(0, 4).map((o) => ({
+          id: o.order_number, customer: o.customer_name, amount: Number(o.total_amount), status: o.status,
+        })));
+        // Fallback: if revenueWeekly endpoint isn't deployed yet, derive from paid orders client-side.
+        const week = buildEmptyWeek();
+        const idx = (iso: string) => {
+          const d = new Date(iso); const today = new Date();
+          const diff = Math.floor((today.getTime() - d.getTime()) / 86400000);
+          return 6 - diff;
+        };
+        let touched = false;
+        r.forEach((o) => {
+          if (o.payment_status !== "paid") return;
+          const i = idx(o.created_at);
+          if (i >= 0 && i < 7) { week[i].v += Number(o.total_amount) || 0; touched = true; }
+        });
+        if (touched) setRevenueData((cur) => cur.every(c => c.v === 0) ? week : cur);
+      })
       .catch(() => {});
   }, []);
   const stats = [
