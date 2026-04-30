@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { ArrowRight, Upload, Layers, Zap, ShieldCheck, Sparkles, Box } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
-import { featured } from "@/data/products";
+import { featured as fallbackFeatured, type Product } from "@/data/products";
+import { productsApi } from "@/services/api";
+import { mapApiProduct } from "@/lib/product-mapper";
 import heroImage from "@/assets/hero-printer.jpg";
 
 const stats = [
@@ -20,7 +23,14 @@ const features = [
   { icon: ShieldCheck, t: "Quality guaranteed", d: "Every print is QC'd. If it's not perfect, we reprint it free." },
 ];
 
-const Home = () => (
+const Home = () => {
+  const [featured, setFeatured] = useState<Product[]>(fallbackFeatured);
+  useEffect(() => {
+    productsApi.list()
+      .then((rows) => setFeatured(rows.slice(0, 4).map(mapApiProduct)))
+      .catch(() => { /* keep fallback */ });
+  }, []);
+  return (
   <PageShell>
     {/* HERO */}
     <section className="relative overflow-hidden">
@@ -158,6 +168,7 @@ const Home = () => (
       </div>
     </section>
   </PageShell>
-);
+  );
+};
 
 export default Home;
