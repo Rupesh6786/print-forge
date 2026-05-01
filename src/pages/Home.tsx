@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowRight, Upload, Layers, Zap, ShieldCheck, Sparkles, Box } from "lucide-react";
+import { ArrowRight, Upload, Layers, Zap, ShieldCheck, Sparkles, Box, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
@@ -28,7 +28,7 @@ const Home = () => {
   const [featured, setFeatured] = useState<Product[]>(fallbackFeatured);
   useEffect(() => {
     productsApi.list()
-      .then((rows) => setFeatured(rows.slice(0, 4).map(mapApiProduct)))
+      .then((rows) => setFeatured(rows.map(mapApiProduct).filter((p) => p.stock > 0).slice(0, 4)))
       .catch(() => { /* keep fallback */ });
   }, []);
   return (
@@ -156,8 +156,35 @@ const Home = () => {
           View all <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         {featured.map((p) => <ProductCard key={p.id} product={p} />)}
+      </div>
+    </section>
+
+    {/* LITHOPHANE CTA */}
+    <section className="container py-12">
+      <div className="relative glass-card rounded-3xl p-8 md:p-14 overflow-hidden grid md:grid-cols-2 gap-8 items-center">
+        <div className="absolute inset-0 bg-aurora opacity-10 animate-aurora bg-[length:200%_200%] pointer-events-none" />
+        <div className="relative space-y-5">
+          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-medium">
+            <ImageIcon className="h-3.5 w-3.5 text-primary" /> New · Photo to lithophane
+          </div>
+          <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
+            Turn any photo into a <span className="text-gradient">glowing lithophane</span>
+          </h2>
+          <p className="text-muted-foreground">
+            Upload a picture, pick your favourite filament colour, and we'll print a translucent lithophane that comes alive when backlit.
+          </p>
+          <Link to="/lithophane">
+            <Button variant="aurora" size="xl">
+              <ImageIcon className="h-5 w-5" /> Create a lithophane
+            </Button>
+          </Link>
+        </div>
+        <div className="relative aspect-square rounded-2xl bg-gradient-to-br from-primary/30 via-accent/20 to-secondary/30 grid place-items-center overflow-hidden">
+          <div className="absolute inset-0 grid-bg opacity-50" />
+          <ImageIcon className="h-24 w-24 text-primary/70 relative" />
+        </div>
       </div>
     </section>
 
