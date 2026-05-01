@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Edit2, Trash2, Loader2, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Loader2, Image as ImageIcon, X } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ApiProduct, productImageUrl, productsApi } from "@/services/api";
+import { ApiProduct, productImageUrl, productGalleryImageUrl, productsApi } from "@/services/api";
 import { toast } from "sonner";
 
 interface FormState {
@@ -26,10 +26,11 @@ interface FormState {
   category_id: string;
   is_active: string;
   imageFile: File | null;
+  galleryFiles: File[]; // additional images to upload after save
 }
 const blankForm: FormState = {
   name: "", tagline: "", description: "", price: "", stock: "0",
-  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null,
+  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
 };
 
 const AdminInventory = () => {
@@ -42,6 +43,8 @@ const AdminInventory = () => {
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<ApiProduct | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [gallery, setGallery] = useState<{ id: number; image_url: string }[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
 
   const refresh = () => {
     setLoading(true);
@@ -55,7 +58,7 @@ const AdminInventory = () => {
   const filtered = list.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
 
   const openNew = () => {
-    setEditing(null); setForm(blankForm); setPreview(null); setOpen(true);
+    setEditing(null); setForm(blankForm); setPreview(null); setGallery([]); setOpen(true);
   };
   const openEdit = (p: ApiProduct) => {
     setEditing(p);
@@ -70,14 +73,44 @@ const AdminInventory = () => {
       category_id: p.category_id ? String(p.category_id) : "",
       is_active: String(p.is_active ?? 1),
       imageFile: null,
+      galleryFiles: [],
     });
     setPreview(productImageUrl(p.id));
     setOpen(true);
+    setGalleryLoading(true);
+    productsApi.images(p.id)
+      .then((rows) => setGallery(rows.map((r) => ({ id: r.id, image_url: productGalleryImageUrl(r.id) }))))
+      .catch(() => setGallery([]))
+      .finally(() => setGalleryLoading(false));
   };
 
   const onPickImage = (file: File | null) => {
     setForm((f) => ({ ...f, imageFile: file }));
     setPreview(file ? URL.createObjectURL(file) : (editing ? productImageUrl(editing.id) : null));
+  };
+
+  const onPickGallery = (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files);
+    setForm((f) => ({ ...f, galleryFiles: [...f.galleryFiles, ...arr] }));
+  };
+
+  const removePendingGallery = (idx: number) =>
+    setForm((f) => ({ ...f, galleryFiles: f.galleryFiles.filter((_, i) => i !== idx) }));
+
+  const removeExistingGallery = async (imgId: number) => {
+    try {
+      await productsApi.removeImage(imgId);
+      setGallery((g) => g.filter((x) => x.id !== imgId));
+      toast.success("Image removed");
+    } catch (e: any) { toast.error("Remove failed: " + e?.message); }
+  };
+
+  const uploadGalleryFor = async (productId: number | string, files: File[]) => {
+    if (!files.length) return;
+    const fd = new FormData();
+    files.forEach((f) => fd.append("images", f));
+    await productsApi.uploadImages(productId, fd);
   };
 
   const submit = async () => {
@@ -98,10 +131,12 @@ const AdminInventory = () => {
 
       if (editing) {
         await productsApi.update(editing.id, fd);
+        await uploadGalleryFor(editing.id, form.galleryFiles);
         toast.success("Product updated");
       } else {
         if (!form.imageFile) { toast.error("Please choose a product image"); setSaving(false); return; }
-        await productsApi.create(fd);
+        const created = await productsApi.create(fd);
+        await uploadGalleryFor(created.id, form.galleryFiles);
         toast.success("Product created");
       }
       setOpen(false); refresh();
