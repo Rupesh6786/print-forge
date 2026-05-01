@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Image as ImageIcon, Upload as UploadIcon, X, Check, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SEO } from "@/components/SEO";
 import { toast } from "sonner";
-import { lithophaneApi } from "@/services/api";
+import { lithophaneApi, servicesApi, type ApiService } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
 const COLORS = [
@@ -20,11 +20,29 @@ const COLORS = [
   { id: "black",  label: "Graphite",     hex: "#2a2a2a" },
 ];
 
-const SIZES = [
+/** Fallback prices used when no matching services exist in the DB. */
+const DEFAULT_SIZES = [
   { id: "small",  label: '4" × 4"',  price: 499 },
   { id: "medium", label: '6" × 6"',  price: 899 },
   { id: "large",  label: '8" × 8"',  price: 1499 },
 ];
+
+/** Pull the first numeric value out of a price label like "₹ 899" or "From 1,499". */
+const parsePrice = (label: string): number => {
+  const m = (label || "").replace(/,/g, "").match(/(\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) : 0;
+};
+
+/** Convert services whose name contains "lithophane" into size options. */
+const servicesToSizes = (services: ApiService[]) => {
+  const litho = services.filter((s) => /lithophane/i.test(s.name));
+  if (!litho.length) return null;
+  return litho.map((s) => {
+    // Strip the leading "Lithophane" word so the button shows the size only.
+    const cleanLabel = s.name.replace(/lithophane\s*[-–:]?\s*/i, "").trim() || s.name;
+    return { id: String(s.id), label: cleanLabel, price: parsePrice(s.price_label) };
+  });
+};
 
 const Lithophane = () => {
   const { user } = useAuth();
@@ -32,13 +50,30 @@ const Lithophane = () => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [color, setColor] = useState(COLORS[0].id);
-  const [size, setSize] = useState(SIZES[1].id);
+  const [sizes, setSizes] = useState<{ id: string; label: string; price: number }[]>(DEFAULT_SIZES);
+  const [size, setSize] = useState<string>(DEFAULT_SIZES[1].id);
   const [name, setName] = useState(user?.displayName ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Pull live lithophane prices from the services API; fallback to defaults.
+  useEffect(() => {
+    let cancelled = false;
+    servicesApi.list()
+      .then((rows) => {
+        if (cancelled) return;
+        const fromApi = servicesToSizes(rows);
+        if (fromApi && fromApi.length) {
+          setSizes(fromApi);
+          setSize(fromApi[Math.min(1, fromApi.length - 1)].id);
+        }
+      })
+      .catch(() => { /* keep fallback */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || !files.length) return;
@@ -73,7 +108,7 @@ const Lithophane = () => {
   };
 
   const selectedColor = COLORS.find((c) => c.id === color)!;
-  const selectedSize  = SIZES.find((s) => s.id === size)!;
+  const selectedSize  = sizes.find((s) => s.id === size) ?? sizes[0];
 
   return (
     <PageShell>
@@ -164,7 +199,7 @@ const Lithophane = () => {
             <div className="glass-card rounded-2xl p-5">
               <div className="text-sm font-medium mb-3">Size</div>
               <div className="grid grid-cols-3 gap-2">
-                {SIZES.map((s) => (
+                {sizes.map((s) => (
                   <button
                     key={s.id}
                     onClick={() => setSize(s.id)}
@@ -173,7 +208,7 @@ const Lithophane = () => {
                     }`}
                   >
                     <div>{s.label}</div>
-                    <div className="text-[11px] font-mono opacity-70 mt-1">₹{s.price}</div>
+                    <div className="text-[11px] font-mono opacity-70 mt-1">₹{s.price || "—"}</div>
                   </button>
                 ))}
               </div>
