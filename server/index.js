@@ -164,6 +164,53 @@ app.delete('/admin/products/:id', authRequired, adminRequired, async (req, res) 
   res.json({ ok: true });
 });
 
+// ─── Product gallery images (multi-image) ───────────────────
+// Public: list gallery image metadata for a product
+app.get('/products/:id/images', async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT id, product_id, image_mime, sort_order, is_primary, created_at FROM product_images WHERE product_id=? ORDER BY sort_order ASC, id ASC',
+    [req.params.id]
+  );
+  res.json(rows.map(r => ({ ...r, image_url: `/product-images/${r.id}` })));
+});
+
+// Public: stream a gallery image
+app.get('/product-images/:imgId', async (req, res) => {
+  const [rows] = await pool.query('SELECT image_blob, image_mime FROM product_images WHERE id=?', [req.params.imgId]);
+  const r = rows[0];
+  if (!r || !r.image_blob) return res.status(404).end();
+  res.setHeader('Content-Type', r.image_mime || 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.end(r.image_blob);
+});
+
+// Admin: upload one OR many gallery images (`images` field, repeated)
+app.post('/admin/products/:id/images', authRequired, adminRequired, upload.array('images', 12), async (req, res) => {
+  const productId = req.params.id;
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files' });
+  const [[{ maxOrder }]] = await pool.query(
+    'SELECT COALESCE(MAX(sort_order),0) AS maxOrder FROM product_images WHERE product_id=?',
+    [productId]
+  );
+  const inserted = [];
+  let order = Number(maxOrder) || 0;
+  for (const f of req.files) {
+    order += 1;
+    const [r] = await pool.query(
+      'INSERT INTO product_images (product_id, image_blob, image_mime, sort_order) VALUES (?,?,?,?)',
+      [productId, f.buffer, f.mimetype || 'image/jpeg', order]
+    );
+    inserted.push({ id: r.insertId, image_url: `/product-images/${r.insertId}` });
+  }
+  res.json({ ok: true, inserted });
+});
+
+// Admin: delete a single gallery image
+app.delete('/admin/product-images/:imgId', authRequired, adminRequired, async (req, res) => {
+  await pool.query('DELETE FROM product_images WHERE id=?', [req.params.imgId]);
+  res.json({ ok: true });
+});
+
 // ════════════════════════════════════════════════════════════
 //                       ORDERS
 // ════════════════════════════════════════════════════════════
