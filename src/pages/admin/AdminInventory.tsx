@@ -259,6 +259,48 @@ const AdminInventory = () => {
             </div>
           </div>
 
+          {/* Additional gallery images */}
+          <div className="space-y-2 border-t border-border/50 pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Additional images {editing && `(${gallery.length} saved)`}
+              </Label>
+              <label className="text-xs text-primary hover:underline cursor-pointer">
+                + Add images
+                <input type="file" accept="image/*" multiple className="hidden"
+                       onChange={(e) => onPickGallery(e.target.files)} />
+              </label>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Upload as many product photos as you like. Customers will see them in the gallery on the product page.
+            </p>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {galleryLoading && <div className="col-span-full text-xs text-muted-foreground">Loading existing images…</div>}
+              {gallery.map((g) => (
+                <div key={g.id} className="relative group aspect-square rounded-lg overflow-hidden bg-muted">
+                  <img src={g.image_url} alt="" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeExistingGallery(g.id)}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {form.galleryFiles.map((f, i) => (
+                <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-muted ring-2 ring-primary/40">
+                  <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                  <span className="absolute bottom-1 left-1 text-[9px] bg-primary text-primary-foreground rounded px-1">NEW</span>
+                  <button type="button" onClick={() => removePendingGallery(i)}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {gallery.length === 0 && form.galleryFiles.length === 0 && !galleryLoading && (
+                <div className="col-span-full text-xs text-muted-foreground italic">No additional images yet.</div>
+              )}
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
             <Button variant="aurora" onClick={submit} disabled={saving}>
