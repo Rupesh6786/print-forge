@@ -11,6 +11,7 @@ import Index from "./pages/Index.tsx";
 import Shop from "./pages/Shop.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import Upload from "./pages/Upload.tsx";
+import Lithophane from "./pages/Lithophane.tsx";
 import Login from "./pages/Login.tsx";
 import Checkout from "./pages/Checkout.tsx";
 import Cart from "./pages/Cart.tsx";
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/shop" element={<Shop />} />
               <Route path="/shop/:id" element={<ProductDetail />} />
               <Route path="/upload" element={<Upload />} />
+              <Route path="/lithophane" element={<Lithophane />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/my-orders" element={<MyOrders />} />
