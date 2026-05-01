@@ -8,6 +8,8 @@ export const API_URL = (import.meta.env.VITE_API_URL || "https://api.printforge.
 
 /** Absolute URL for a product image streamed by the API. */
 export const productImageUrl = (id: number | string) => `${API_URL}/products/${id}/image`;
+/** Absolute URL for an additional gallery image streamed by the API. */
+export const productGalleryImageUrl = (imgId: number | string) => `${API_URL}/product-images/${imgId}`;
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -65,6 +67,17 @@ export const productsApi = {
   create: (form: FormData) => multipart<{ id: number }>("/admin/products", form, "POST"),
   update: (id: number | string, form: FormData) => multipart<{ ok: true }>(`/admin/products/${id}`, form, "PUT"),
   remove: (id: number | string) => request<void>(`/admin/products/${id}`, { method: "DELETE", authed: true }),
+  /** List extra gallery images for a product. */
+  images: (id: number | string) =>
+    request<{ id: number; product_id: number; image_url: string; image_mime: string; sort_order: number; is_primary: number }[]>(
+      `/products/${id}/images`
+    ),
+  /** Upload one or more gallery images. `images` is a FormData with field name "images" (repeated). */
+  uploadImages: (id: number | string, form: FormData) =>
+    multipart<{ ok: true; inserted: { id: number; image_url: string }[] }>(`/admin/products/${id}/images`, form, "POST"),
+  /** Delete a single gallery image. */
+  removeImage: (imgId: number | string) =>
+    request<{ ok: true }>(`/admin/product-images/${imgId}`, { method: "DELETE", authed: true }),
 };
 
 /* ────────── Orders ────────── */

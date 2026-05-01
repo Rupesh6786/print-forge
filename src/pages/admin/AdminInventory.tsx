@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Edit2, Trash2, Loader2, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Loader2, Image as ImageIcon, X } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ApiProduct, productImageUrl, productsApi } from "@/services/api";
+import { ApiProduct, productImageUrl, productGalleryImageUrl, productsApi } from "@/services/api";
 import { toast } from "sonner";
 
 interface FormState {
@@ -26,10 +26,11 @@ interface FormState {
   category_id: string;
   is_active: string;
   imageFile: File | null;
+  galleryFiles: File[]; // additional images to upload after save
 }
 const blankForm: FormState = {
   name: "", tagline: "", description: "", price: "", stock: "0",
-  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null,
+  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
 };
 
 const AdminInventory = () => {
@@ -42,6 +43,8 @@ const AdminInventory = () => {
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<ApiProduct | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [gallery, setGallery] = useState<{ id: number; image_url: string }[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
 
   const refresh = () => {
     setLoading(true);
@@ -55,7 +58,7 @@ const AdminInventory = () => {
   const filtered = list.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
 
   const openNew = () => {
-    setEditing(null); setForm(blankForm); setPreview(null); setOpen(true);
+    setEditing(null); setForm(blankForm); setPreview(null); setGallery([]); setOpen(true);
   };
   const openEdit = (p: ApiProduct) => {
     setEditing(p);
@@ -70,14 +73,44 @@ const AdminInventory = () => {
       category_id: p.category_id ? String(p.category_id) : "",
       is_active: String(p.is_active ?? 1),
       imageFile: null,
+      galleryFiles: [],
     });
     setPreview(productImageUrl(p.id));
     setOpen(true);
+    setGalleryLoading(true);
+    productsApi.images(p.id)
+      .then((rows) => setGallery(rows.map((r) => ({ id: r.id, image_url: productGalleryImageUrl(r.id) }))))
+      .catch(() => setGallery([]))
+      .finally(() => setGalleryLoading(false));
   };
 
   const onPickImage = (file: File | null) => {
     setForm((f) => ({ ...f, imageFile: file }));
     setPreview(file ? URL.createObjectURL(file) : (editing ? productImageUrl(editing.id) : null));
+  };
+
+  const onPickGallery = (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files);
+    setForm((f) => ({ ...f, galleryFiles: [...f.galleryFiles, ...arr] }));
+  };
+
+  const removePendingGallery = (idx: number) =>
+    setForm((f) => ({ ...f, galleryFiles: f.galleryFiles.filter((_, i) => i !== idx) }));
+
+  const removeExistingGallery = async (imgId: number) => {
+    try {
+      await productsApi.removeImage(imgId);
+      setGallery((g) => g.filter((x) => x.id !== imgId));
+      toast.success("Image removed");
+    } catch (e: any) { toast.error("Remove failed: " + e?.message); }
+  };
+
+  const uploadGalleryFor = async (productId: number | string, files: File[]) => {
+    if (!files.length) return;
+    const fd = new FormData();
+    files.forEach((f) => fd.append("images", f));
+    await productsApi.uploadImages(productId, fd);
   };
 
   const submit = async () => {
@@ -98,10 +131,12 @@ const AdminInventory = () => {
 
       if (editing) {
         await productsApi.update(editing.id, fd);
+        await uploadGalleryFor(editing.id, form.galleryFiles);
         toast.success("Product updated");
       } else {
         if (!form.imageFile) { toast.error("Please choose a product image"); setSaving(false); return; }
-        await productsApi.create(fd);
+        const created = await productsApi.create(fd);
+        await uploadGalleryFor(created.id, form.galleryFiles);
         toast.success("Product created");
       }
       setOpen(false); refresh();
@@ -221,6 +256,48 @@ const AdminInventory = () => {
                        onChange={(e) => setForm({ ...form, is_active: e.target.checked ? "1" : "0" })} />
                 <Label htmlFor="active" className="text-sm">Active (visible in shop)</Label>
               </div>
+            </div>
+          </div>
+
+          {/* Additional gallery images */}
+          <div className="space-y-2 border-t border-border/50 pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Additional images {editing && `(${gallery.length} saved)`}
+              </Label>
+              <label className="text-xs text-primary hover:underline cursor-pointer">
+                + Add images
+                <input type="file" accept="image/*" multiple className="hidden"
+                       onChange={(e) => onPickGallery(e.target.files)} />
+              </label>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Upload as many product photos as you like. Customers will see them in the gallery on the product page.
+            </p>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {galleryLoading && <div className="col-span-full text-xs text-muted-foreground">Loading existing images…</div>}
+              {gallery.map((g) => (
+                <div key={g.id} className="relative group aspect-square rounded-lg overflow-hidden bg-muted">
+                  <img src={g.image_url} alt="" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeExistingGallery(g.id)}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {form.galleryFiles.map((f, i) => (
+                <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-muted ring-2 ring-primary/40">
+                  <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                  <span className="absolute bottom-1 left-1 text-[9px] bg-primary text-primary-foreground rounded px-1">NEW</span>
+                  <button type="button" onClick={() => removePendingGallery(i)}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {gallery.length === 0 && form.galleryFiles.length === 0 && !galleryLoading && (
+                <div className="col-span-full text-xs text-muted-foreground italic">No additional images yet.</div>
+              )}
             </div>
           </div>
 

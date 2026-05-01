@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Star, Truck, ShieldCheck, ShoppingCart, Box, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { products as fallbackProducts, type Product } from "@/data/products";
-import { productsApi } from "@/services/api";
+import { productsApi, productGalleryImageUrl } from "@/services/api";
 import { mapApiProduct } from "@/lib/product-mapper";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [material, setMaterial] = useState<string>("PLA");
   const [qty, setQty] = useState(1);
+  const [gallery, setGallery] = useState<string[]>([]);
+  const [activeImage, setActiveImage] = useState<string | null>(null);
   const { user } = useAuth();
   const { add } = useCart();
   const navigate = useNavigate();
@@ -27,10 +29,18 @@ const ProductDetail = () => {
     let cancelled = false;
     setLoading(true);
     productsApi.get(id)
-      .then((p) => { if (!cancelled) { const m = mapApiProduct(p); setProduct(m); setMaterial(m.materials[0] ?? "PLA"); } })
+      .then((p) => {
+        if (cancelled) return;
+        const m = mapApiProduct(p);
+        setProduct(m); setMaterial(m.materials[0] ?? "PLA");
+        setActiveImage(m.image);
+        productsApi.images(p.id)
+          .then((rows) => { if (!cancelled) setGallery(rows.map((r) => productGalleryImageUrl(r.id))); })
+          .catch(() => { if (!cancelled) setGallery([]); });
+      })
       .catch(() => {
         const fb = fallbackProducts.find((p) => p.id === id) ?? null;
-        if (!cancelled) { setProduct(fb); setMaterial(fb?.materials[0] ?? "PLA"); }
+        if (!cancelled) { setProduct(fb); setMaterial(fb?.materials[0] ?? "PLA"); setActiveImage(fb?.image ?? null); }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -108,8 +118,24 @@ const ProductDetail = () => {
           <div className="relative animate-scale-in">
             <div className="absolute -inset-6 bg-aurora opacity-20 blur-3xl rounded-full" />
             <div className="relative glass-card rounded-3xl overflow-hidden">
-              <img src={product.image} alt={product.name} className="w-full aspect-square object-cover" />
+              <img src={activeImage || product.image} alt={product.name} className="w-full aspect-square object-cover" />
             </div>
+            {gallery.length > 0 && (
+              <div className="relative mt-3 grid grid-cols-5 gap-2">
+                {[product.image, ...gallery].map((src, i) => {
+                  const active = (activeImage || product.image) === src;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setActiveImage(src)}
+                      className={`aspect-square rounded-lg overflow-hidden border-2 transition ${active ? "border-primary shadow-glow" : "border-border hover:border-primary/50"}`}
+                    >
+                      <img src={src} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="space-y-6 animate-fade-up">
