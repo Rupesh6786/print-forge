@@ -167,6 +167,27 @@ export const settingsApi = {
     request<{ ok: true }>("/admin/settings", { method: "PUT", body: data, authed: true }),
 };
 
+/* ────────── Lithophane ────────── */
+export interface ApiLithophane {
+  id: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  color: string;
+  size: string;
+  notes: string | null;
+  status: "pending" | "approved" | "printing" | "shipped" | "completed" | "cancelled";
+  image_mime: string | null;
+  created_at: string;
+}
+export const lithophaneImageUrl = (id: number | string) => `${API_URL}/lithophanes/${id}/image`;
+export const lithophaneApi = {
+  create: (form: FormData) => multipart<{ id: number }>("/lithophanes", form, "POST"),
+  list:   () => request<ApiLithophane[]>("/admin/lithophanes", { authed: true }),
+  updateStatus: (id: number, status: ApiLithophane["status"]) =>
+    request<{ ok: true }>(`/admin/lithophanes/${id}/status`, { method: "PATCH", body: { status }, authed: true }),
+};
+
 /* ────────── Legacy token shims (kept so old imports compile) ────────── */
 const TOKEN_KEY = "printforge_jwt";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
