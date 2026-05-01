@@ -250,3 +250,25 @@ INSERT INTO product_analytics (product_id, date, views, add_to_cart, purchases, 
   (3, CURDATE() - INTERVAL 1 DAY,  210, 30, 6,  1494.00),
   (6, CURDATE() - INTERVAL 1 DAY,   60,  8, 1,  1299.00),
   (8, CURDATE(),                    44,  6, 1,  2199.00);
+
+-- ----------------------------- LITHOPHANES ------------------
+-- Photo-to-lithophane requests submitted from /lithophane page.
+CREATE TABLE IF NOT EXISTS lithophanes (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  user_id         INT NULL,
+  customer_name   VARCHAR(120) NOT NULL,
+  customer_email  VARCHAR(191) NOT NULL,
+  customer_phone  VARCHAR(20)  NULL,
+  color           VARCHAR(40)  NOT NULL DEFAULT 'white',
+  size            VARCHAR(40)  NOT NULL DEFAULT 'medium',
+  notes           TEXT NULL,
+  status          ENUM('pending','approved','printing','shipped','completed','cancelled')
+                    NOT NULL DEFAULT 'pending',
+  image_blob      LONGBLOB NULL,
+  image_mime      VARCHAR(80)  NULL,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_email  (customer_email),
+  CONSTRAINT fk_litho_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
