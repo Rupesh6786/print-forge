@@ -389,6 +389,50 @@ app.put('/admin/settings', authRequired, adminRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ════════════════════════════════════════════════════════════
+//                       LITHOPHANES
+// ════════════════════════════════════════════════════════════
+// Public: submit a lithophane request (multipart with `image`)
+app.post('/lithophanes', upload.single('image'), async (req, res) => {
+  try {
+    const { customer_name, customer_email, customer_phone, color, size, notes } = req.body || {};
+    if (!customer_name || !customer_email) return res.status(400).json({ error: 'name and email required' });
+    if (!req.file) return res.status(400).json({ error: 'image required' });
+    const [r] = await pool.query(
+      `INSERT INTO lithophanes
+         (customer_name, customer_email, customer_phone, color, size, notes, image_blob, image_mime)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [customer_name, customer_email, customer_phone || null,
+       color || 'white', size || 'medium', notes || null,
+       req.file.buffer, req.file.mimetype || 'image/jpeg']
+    );
+    res.json({ id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Stream the uploaded image (admin uses this in dashboard)
+app.get('/lithophanes/:id/image', async (req, res) => {
+  const [rows] = await pool.query('SELECT image_blob, image_mime FROM lithophanes WHERE id=?', [req.params.id]);
+  const r = rows[0];
+  if (!r || !r.image_blob) return res.status(404).end();
+  res.setHeader('Content-Type', r.image_mime || 'image/jpeg');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.end(r.image_blob);
+});
+
+app.get('/admin/lithophanes', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query(
+    `SELECT id,user_id,customer_name,customer_email,customer_phone,color,size,notes,status,image_mime,created_at,updated_at
+       FROM lithophanes ORDER BY created_at DESC`
+  );
+  res.json(rows);
+});
+
+app.patch('/admin/lithophanes/:id/status', authRequired, adminRequired, async (req, res) => {
+  await pool.query('UPDATE lithophanes SET status=? WHERE id=?', [req.body.status, req.params.id]);
+  res.json({ ok: true });
+});
+
 // ─── Error handler ─────────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error(err);
