@@ -32,7 +32,7 @@ export const ProductCard = ({ product }: { product: Product }) => (
           </div>
         </div>
         <div className="flex items-center justify-between pt-2">
-          <span className="font-display text-lg font-bold text-gradient">${product.price}</span>
+          <span className="font-display text-lg font-bold text-gradient">₹{product.price}</span>
           <div className="flex gap-1">
             {product.materials.map((m) => (
               <span key={m} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{m}</span>
