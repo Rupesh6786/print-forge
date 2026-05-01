@@ -12,6 +12,7 @@ const links = [
   { to: "/", label: "Home" },
   { to: "/shop", label: "Shop" },
   { to: "/upload", label: "Upload STL" },
+  { to: "/lithophane", label: "Lithophane" },
   { to: "/admin", label: "Dashboard" },
 ];
 
