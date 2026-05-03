@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ApiProduct, productImageUrl, productGalleryImageUrl, productsApi } from "@/services/api";
+import { ApiProduct, productImageUrl, productGalleryImageUrl, productsApi, categoriesApi, type ApiCategory } from "@/services/api";
 import { toast } from "sonner";
 
 interface FormState {
@@ -35,6 +35,7 @@ const blankForm: FormState = {
 
 const AdminInventory = () => {
   const [list, setList]     = useState<ApiProduct[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ]           = useState("");
   const [open, setOpen]     = useState(false);
@@ -54,6 +55,9 @@ const AdminInventory = () => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    categoriesApi.list().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   const filtered = list.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
 
@@ -248,7 +252,19 @@ const AdminInventory = () => {
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Stock"     value={form.stock}   onChange={(v) => setForm({ ...form, stock: v })} type="number" />
                 <Field label="Rating"    value={form.rating}  onChange={(v) => setForm({ ...form, rating: v })} type="number" />
-                <Field label="Category #" value={form.category_id} onChange={(v) => setForm({ ...form, category_id: v })} type="number" />
+                <div className="space-y-1">
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
+                  <select
+                    value={form.category_id}
+                    onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                    className="h-10 glass w-full rounded-md px-2 text-sm bg-transparent border border-input"
+                  >
+                    <option value="">— None —</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <Field label="Materials (CSV)" value={form.materials} onChange={(v) => setForm({ ...form, materials: v })} placeholder="PLA,ABS,Resin" mono />
               <div className="flex items-center gap-2">
