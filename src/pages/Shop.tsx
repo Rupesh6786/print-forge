@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
@@ -12,10 +13,17 @@ import type { Product } from "@/data/products";
 import { toast } from "sonner";
 
 const Shop = () => {
-  const [q, setQ] = useState("");
+  const [params, setParams] = useSearchParams();
+  const [q, setQ] = useState(params.get("q") ?? "");
   const [cat, setCat] = useState("All");
   const [list, setList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const urlQ = params.get("q") ?? "";
+    if (urlQ !== q) setQ(urlQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   useEffect(() => {
     let cancelled = false;
