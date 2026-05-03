@@ -8,6 +8,7 @@ import { SEO } from "@/components/SEO";
 import { toast } from "sonner";
 import { lithophaneApi, servicesApi, type ApiService } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { Navigate, useLocation } from "react-router-dom";
 
 const COLORS = [
   { id: "white",  label: "Pearl White",  hex: "#f5f5f0" },
@@ -45,7 +46,8 @@ const servicesToSizes = (services: ApiService[]) => {
 };
 
 const Lithophane = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const location = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -109,6 +111,10 @@ const Lithophane = () => {
 
   const selectedColor = COLORS.find((c) => c.id === color)!;
   const selectedSize  = sizes.find((s) => s.id === size) ?? sizes[0];
+
+  if (!loading && !user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
 
   return (
     <PageShell>
