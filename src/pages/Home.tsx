@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowRight, Upload, Layers, Zap, ShieldCheck, Sparkles, Box, Image as ImageIcon } from "lucide-react";
+import { ArrowRight, Upload, Sparkles, Box, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProductCard } from "@/components/nexus/ProductCard";
