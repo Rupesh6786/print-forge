@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Moon, Sun, ShoppingCart, User, LogOut, LayoutDashboard, Package } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X, Moon, Sun, ShoppingCart, User, LogOut, LayoutDashboard, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -22,7 +22,10 @@ export const Navbar = () => {
   const { count } = useCart();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -32,6 +35,13 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => setOpen(false), [pathname]);
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQ.trim();
+    setSearchOpen(false);
+    navigate(q ? `/shop?q=${encodeURIComponent(q)}` : "/shop");
+  };
 
   return (
     <header
@@ -47,6 +57,16 @@ export const Navbar = () => {
             scrolled && "shadow-elegant"
           )}
         >
+          {/* Mobile: menu icon on the LEFT */}
+          <div className="flex items-center gap-2 md:hidden">
+            <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => setOpen((o) => !o)} aria-label="Menu">
+              {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => setSearchOpen((o) => !o)} aria-label="Search">
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+
           <Logo />
 
           <div className="hidden md:flex items-center gap-1">
@@ -64,11 +84,15 @@ export const Navbar = () => {
             ))}
           </div>
 
+          {/* Right side actions */}
           <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="icon" onClick={() => setSearchOpen((o) => !o)} className="rounded-lg hidden md:inline-flex" aria-label="Search">
+              <Search className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={toggle} className="rounded-lg" aria-label="Toggle theme">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Link to="/cart" className="hidden sm:block">
+            <Link to="/cart">
               <Button variant="ghost" size="icon" className="rounded-lg relative" aria-label="Cart">
                 <ShoppingCart className="h-4 w-4" />
                 {count > 0 && (
@@ -79,7 +103,13 @@ export const Navbar = () => {
               </Button>
             </Link>
             {user ? (
-              <div className="hidden sm:flex items-center gap-1.5">
+              <>
+                <Link to="/my-orders" className="sm:hidden">
+                  <Button variant="ghost" size="icon" className="rounded-lg" aria-label="My orders">
+                    <Package className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <div className="hidden sm:flex items-center gap-1.5">
                 <Link to="/my-orders">
                   <Button variant="ghost" size="sm" className="gap-1.5">
                     <Package className="h-4 w-4" /> My orders
@@ -95,37 +125,87 @@ export const Navbar = () => {
                 <Button variant="ghost" size="sm" onClick={() => logout()} className="gap-1.5">
                   <LogOut className="h-4 w-4" /> Sign out
                 </Button>
-              </div>
+                </div>
+              </>
             ) : (
-              <Link to="/login" className="hidden sm:block">
-                <Button variant="aurora" size="sm" className="gap-1.5">
-                  <User className="h-4 w-4" /> Sign in
-                </Button>
-              </Link>
+              <>
+                <Link to="/login" className="sm:hidden">
+                  <Button variant="aurora" size="icon" className="rounded-lg" aria-label="Sign in">
+                    <User className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link to="/login" className="hidden sm:block">
+                  <Button variant="aurora" size="sm" className="gap-1.5">
+                    <User className="h-4 w-4" /> Sign in
+                  </Button>
+                </Link>
+              </>
             )}
-            <Button variant="ghost" size="icon" className="md:hidden rounded-lg" onClick={() => setOpen((o) => !o)} aria-label="Menu">
-              {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </Button>
           </div>
         </nav>
 
+        {searchOpen && (
+          <form onSubmit={submitSearch} className="glass rounded-2xl mt-2 p-2 flex items-center gap-2 animate-fade-up">
+            <Search className="h-4 w-4 ml-2 text-muted-foreground" />
+            <input
+              autoFocus
+              type="search"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Search prints, materials, categories…"
+              className="flex-1 bg-transparent outline-none text-sm py-2"
+            />
+            <Button type="submit" variant="aurora" size="sm">Search</Button>
+          </form>
+        )}
+
         {open && (
-          <div className="md:hidden glass rounded-2xl mt-2 p-3 animate-fade-up flex flex-col">
+          <div className="md:hidden glass rounded-2xl mt-2 p-3 animate-fade-up flex flex-col items-stretch text-left">
             {links.map((l) => (
+              (l.to === "/admin" && !isAdmin) ? null : (
               <Link
                 key={l.to}
                 to={l.to}
                 className={cn(
-                  "px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                  "px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left",
                   pathname === l.to ? "bg-muted text-primary" : "hover:bg-muted/60"
                 )}
               >
                 {l.label}
               </Link>
+              )
             ))}
-            <Link to="/login" className="mt-2">
-              <Button variant="aurora" className="w-full">Sign in</Button>
-            </Link>
+            <div className="border-t border-border/50 mt-2 pt-2 flex flex-col">
+              {user ? (
+                <>
+                  <div className="px-4 py-2 text-xs text-muted-foreground">
+                    Signed in as <span className="text-foreground font-medium">{user.displayName || user.email}</span>
+                  </div>
+                  <Link to="/my-orders" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                    <Package className="h-4 w-4" /> My orders
+                  </Link>
+                  <Link to="/cart" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4" /> Cart {count > 0 && <span className="ml-auto text-xs font-mono">{count}</span>}
+                  </Link>
+                  {isAdmin && (
+                    <Link to="/admin" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                      <LayoutDashboard className="h-4 w-4" /> Admin dashboard
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => logout()}
+                    className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2 text-left"
+                  >
+                    <LogOut className="h-4 w-4" /> Sign out
+                  </button>
+                </>
+              ) : (
+                <Link to="/login" className="mt-1">
+                  <Button variant="aurora" className="w-full"><User className="h-4 w-4" /> Sign in</Button>
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>
