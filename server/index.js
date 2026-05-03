@@ -106,18 +106,43 @@ app.get('/health', async (_req, res) => {
 // ════════════════════════════════════════════════════════════
 app.get('/products', async (_req, res) => {
   const [rows] = await pool.query(
-    'SELECT id,name,tagline,description,price,category_id,image_mime,materials,stock,rating,is_active,created_at,updated_at FROM products WHERE is_active=1 ORDER BY id DESC'
+    `SELECT p.id,p.name,p.tagline,p.description,p.price,p.category_id,c.name AS category_name,
+            p.image_mime,p.materials,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+      WHERE p.is_active=1
+      ORDER BY p.id DESC`
   );
   res.json(rows.map(stripBlobs));
 });
 
 app.get('/products/:id', async (req, res) => {
   const [rows] = await pool.query(
-    'SELECT id,name,tagline,description,price,category_id,image_mime,materials,stock,rating,is_active,created_at,updated_at FROM products WHERE id=?',
+    `SELECT p.id,p.name,p.tagline,p.description,p.price,p.category_id,c.name AS category_name,
+            p.image_mime,p.materials,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+      WHERE p.id=?`,
     [req.params.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(stripBlobs(rows[0]));
+});
+
+// ─── Categories ────────────────────────────────────────────
+app.get('/categories', async (_req, res) => {
+  const [rows] = await pool.query('SELECT id,name,slug,description FROM categories ORDER BY name ASC');
+  res.json(rows);
+});
+app.post('/admin/categories', authRequired, adminRequired, async (req, res) => {
+  const { name, slug, description } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const safeSlug = slug || String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const [r] = await pool.query(
+    'INSERT INTO categories (name,slug,description) VALUES (?,?,?)',
+    [name, safeSlug, description || null]
+  );
+  res.json({ id: r.insertId, name, slug: safeSlug });
 });
 
 // Stream the product image BLOB
