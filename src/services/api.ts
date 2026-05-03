@@ -165,6 +165,19 @@ export const servicesApi = {
   remove: (id: number) => request<{ ok: true }>(`/admin/services/${id}`, { method: "DELETE", authed: true }),
 };
 
+/* ────────── Categories ────────── */
+export interface ApiCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+export const categoriesApi = {
+  list:   () => request<ApiCategory[]>("/categories"),
+  create: (data: { name: string; slug?: string; description?: string }) =>
+    request<{ id: number; name: string; slug: string }>("/admin/categories", { method: "POST", body: data, authed: true }),
+};
+
 /* ────────── Settings ────────── */
 export interface AppSettings {
   upi_id: string;
