@@ -114,7 +114,7 @@ const ProductDetail = () => {
           <ArrowLeft className="h-4 w-4" /> Back to shop
         </Link>
 
-        <div className="grid lg:grid-cols-2 gap-12">
+        <div className="grid lg:grid-cols-2 gap-6 md:gap-12">
           <div className="relative animate-scale-in">
             <div className="absolute -inset-6 bg-aurora opacity-20 blur-3xl rounded-full" />
             <div className="relative glass-card rounded-3xl overflow-hidden">
@@ -141,9 +141,9 @@ const ProductDetail = () => {
           <div className="space-y-6 animate-fade-up">
             <div>
               <Badge variant="outline" className="mb-3">{product.category}</Badge>
-              <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight">{product.name}</h1>
-              <p className="text-muted-foreground mt-2">{product.tagline}</p>
-              <div className="flex items-center gap-3 mt-3 text-sm">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight break-words">{product.name}</h1>
+              <p className="text-sm md:text-base text-muted-foreground mt-2">{product.tagline}</p>
+              <div className="flex items-center gap-3 mt-2 text-sm">
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-primary text-primary" /> {product.rating}
                 </div>
@@ -152,7 +152,7 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+            <p className="text-sm md:text-base text-muted-foreground leading-relaxed">{product.description}</p>
 
             <div className="space-y-3">
               <label className="text-sm font-medium">Material</label>
@@ -193,16 +193,16 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            <div className="glass-card rounded-2xl p-5 flex items-center justify-between">
+            <div className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="text-xs text-muted-foreground">Total</div>
-                <div className="font-display text-3xl font-bold text-gradient">₹{total}</div>
+                <div className="font-display text-2xl sm:text-3xl font-bold text-gradient">₹{total}</div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="glass" size="lg" onClick={addToCart}>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="glass" size="lg" onClick={addToCart} className="flex-1 sm:flex-none">
                   <ShoppingCart className="h-4 w-4" /> Add to cart
                 </Button>
-                <Button variant="aurora" size="lg" onClick={buyNow}>
+                <Button variant="aurora" size="lg" onClick={buyNow} className="flex-1 sm:flex-none">
                   Buy now
                 </Button>
               </div>

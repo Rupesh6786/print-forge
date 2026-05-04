@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 const links = [
   { to: "/", label: "Home" },
@@ -159,55 +160,61 @@ export const Navbar = () => {
           </form>
         )}
 
-        {open && (
-          <div className="md:hidden glass rounded-2xl mt-2 p-3 animate-fade-up flex flex-col items-stretch text-left">
-            {links.map((l) => (
-              (l.to === "/admin" && !isAdmin) ? null : (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={cn(
-                  "px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left",
-                  pathname === l.to ? "bg-muted text-primary" : "hover:bg-muted/60"
-                )}
-              >
-                {l.label}
-              </Link>
-              )
-            ))}
-            <div className="border-t border-border/50 mt-2 pt-2 flex flex-col">
-              {user ? (
-                <>
-                  <div className="px-4 py-2 text-xs text-muted-foreground">
-                    Signed in as <span className="text-foreground font-medium">{user.displayName || user.email}</span>
-                  </div>
-                  <Link to="/my-orders" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
-                    <Package className="h-4 w-4" /> My orders
-                  </Link>
-                  <Link to="/cart" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4" /> Cart {count > 0 && <span className="ml-auto text-xs font-mono">{count}</span>}
-                  </Link>
-                  {isAdmin && (
-                    <Link to="/admin" className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
-                      <LayoutDashboard className="h-4 w-4" /> Admin dashboard
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => logout()}
-                    className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2 text-left"
-                  >
-                    <LogOut className="h-4 w-4" /> Sign out
-                  </button>
-                </>
-              ) : (
-                <Link to="/login" className="mt-1">
-                  <Button variant="aurora" className="w-full"><User className="h-4 w-4" /> Sign in</Button>
-                </Link>
-              )}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="left" className="md:hidden w-72 p-0 flex flex-col">
+            <div className="px-4 pt-5 pb-3 border-b border-border/50">
+              <Logo />
             </div>
-          </div>
-        )}
+            <div className="flex-1 overflow-y-auto py-2 px-2">
+              {links.map((l) => (
+                (l.to === "/admin" && !isAdmin) ? null : (
+                  <Link
+                    key={l.to}
+                    to={l.to}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "block px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                      pathname === l.to ? "bg-muted text-primary" : "hover:bg-muted/60"
+                    )}
+                  >
+                    {l.label}
+                  </Link>
+                )
+              ))}
+              <div className="border-t border-border/50 mt-2 pt-2 flex flex-col">
+                {user ? (
+                  <>
+                    <div className="px-4 py-2 text-xs text-muted-foreground">
+                      Signed in as <span className="text-foreground font-medium">{user.displayName || user.email}</span>
+                    </div>
+                    <Link to="/my-orders" onClick={() => setOpen(false)} className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                      <Package className="h-4 w-4" /> My orders
+                    </Link>
+                    <Link to="/cart" onClick={() => setOpen(false)} className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4" /> Cart {count > 0 && <span className="ml-auto text-xs font-mono">{count}</span>}
+                    </Link>
+                    {isAdmin && (
+                      <Link to="/admin" onClick={() => setOpen(false)} className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2">
+                        <LayoutDashboard className="h-4 w-4" /> Admin dashboard
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setOpen(false); logout(); }}
+                      className="px-4 py-3 rounded-lg text-sm font-medium hover:bg-muted/60 flex items-center gap-2 text-left"
+                    >
+                      <LogOut className="h-4 w-4" /> Sign out
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/login" onClick={() => setOpen(false)} className="mt-1 px-2">
+                    <Button variant="aurora" className="w-full"><User className="h-4 w-4" /> Sign in</Button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </header>
   );
