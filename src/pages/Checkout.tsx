@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag, Plus, Trash2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/layout/PageShell";
 import { buildUpiUrl } from "@/lib/upi";
 import { settingsApi } from "@/services/api";
@@ -17,6 +16,26 @@ import { toast } from "sonner";
 
 const FALLBACK = { upi_id: "22rupeshthakur@oksbi", upi_payee_name: "Rupesh Thakur" };
 
+type SavedAddress = {
+  id: string;
+  label: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+};
+
+const ADDR_KEY = "pf_saved_addresses";
+const loadAddresses = (): SavedAddress[] => {
+  try { return JSON.parse(localStorage.getItem(ADDR_KEY) || "[]"); } catch { return []; }
+};
+const saveAddresses = (a: SavedAddress[]) => localStorage.setItem(ADDR_KEY, JSON.stringify(a));
+
+const formatAddress = (a: { line1: string; line2?: string; city: string; state: string; pincode: string; country: string }) =>
+  [a.line1, a.line2, `${a.city}, ${a.state} ${a.pincode}`, a.country].filter(Boolean).join(", ");
+
 const Checkout = () => {
   const { user, loading: authLoading } = useAuth();
   const { items, total, clear } = useCart();
@@ -25,7 +44,18 @@ const Checkout = () => {
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
   const [phone, setPhone]     = useState("");
-  const [address, setAddress] = useState("");
+  const [line1, setLine1] = useState("");
+  const [line2, setLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [country, setCountry] = useState("India");
+  const [label, setLabel] = useState("Home");
+  const [saveForLater, setSaveForLater] = useState(true);
+
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("new");
+
   const [orderId] = useState(() => newOrderId());
   const [upi, setUpi] = useState(FALLBACK);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -43,6 +73,27 @@ const Checkout = () => {
       setEmail(user.email || "");
     }
   }, [user]);
+
+  useEffect(() => {
+    const a = loadAddresses();
+    setSavedAddresses(a);
+    if (a.length > 0) setSelectedId(a[0].id);
+  }, []);
+
+  const useSaved = (id: string) => {
+    setSelectedId(id);
+    if (id === "new") return;
+    const a = savedAddresses.find((x) => x.id === id);
+    if (!a) return;
+    setLine1(a.line1); setLine2(a.line2 || ""); setCity(a.city);
+    setStateName(a.state); setPincode(a.pincode); setCountry(a.country); setLabel(a.label);
+  };
+
+  const deleteSaved = (id: string) => {
+    const next = savedAddresses.filter((a) => a.id !== id);
+    setSavedAddresses(next); saveAddresses(next);
+    if (selectedId === id) setSelectedId(next[0]?.id || "new");
+  };
 
   useEffect(() => {
     settingsApi.get()
@@ -69,14 +120,24 @@ const Checkout = () => {
   };
 
   const submitOrder = async () => {
-    if (!name || !email || !address) { toast.error("Please fill name, email and address"); return; }
+    if (!name || !email) { toast.error("Please fill name and email"); return; }
+    if (!line1 || !city || !stateName || !pincode) { toast.error("Please complete the shipping address"); return; }
     if (items.length === 0) { toast.error("Cart is empty"); return; }
+
+    const addressBlock = { line1, line2, city, state: stateName, pincode, country };
+    const shipping_address = formatAddress(addressBlock);
+
+    if (saveForLater && selectedId === "new") {
+      const entry: SavedAddress = { id: crypto.randomUUID(), label: label || "Address", ...addressBlock };
+      const next = [entry, ...savedAddresses];
+      setSavedAddresses(next); saveAddresses(next);
+    }
 
     // Try to persist on the API first; always keep a local copy as fallback.
     try {
       await ordersApi.create({
         customer_name: name, customer_email: email, customer_phone: phone,
-        shipping_address: address,
+        shipping_address,
         total_amount: total,
         payment_method: "upi_qr",
         items: items.map((i) => ({
@@ -91,7 +152,7 @@ const Checkout = () => {
       id: orderId,
       user_uid: user?.uid ?? null,
       customer_name: name, customer_email: email, customer_phone: phone,
-      shipping_address: address,
+      shipping_address,
       items: items.map((i) => ({
         productId: i.productId, name: i.name, material: i.material,
         quantity: i.quantity, unit_price: i.price,
