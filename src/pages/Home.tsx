@@ -50,14 +50,14 @@ const Home = () => {
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <span>Now printing in carbon-fiber nylon</span>
           </div>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-7xl font-bold leading-[1.05] tracking-tight">
+          <h1 className="font-display text-3xl sm:text-4xl lg:text-6xl font-bold leading-[1.05] tracking-tight">
             Print the
             <br />
             <span className="text-gradient animate-aurora bg-[length:200%_200%]">impossible</span>
             <br />
             on demand.
           </h1>
-          <p className="text-lg text-muted-foreground max-w-xl">
+          <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
             A full-stack 3D printing studio in your pocket. Browse our curated marketplace or upload your own STL — we'll print, finish, and ship it within 48 hours.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
