@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag, Plus, Trash2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PageShell } from "@/components/layout/PageShell";
 import { buildUpiUrl } from "@/lib/upi";
 import { settingsApi } from "@/services/api";
@@ -17,6 +16,26 @@ import { toast } from "sonner";
 
 const FALLBACK = { upi_id: "22rupeshthakur@oksbi", upi_payee_name: "Rupesh Thakur" };
 
+type SavedAddress = {
+  id: string;
+  label: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+};
+
+const ADDR_KEY = "pf_saved_addresses";
+const loadAddresses = (): SavedAddress[] => {
+  try { return JSON.parse(localStorage.getItem(ADDR_KEY) || "[]"); } catch { return []; }
+};
+const saveAddresses = (a: SavedAddress[]) => localStorage.setItem(ADDR_KEY, JSON.stringify(a));
+
+const formatAddress = (a: { line1: string; line2?: string; city: string; state: string; pincode: string; country: string }) =>
+  [a.line1, a.line2, `${a.city}, ${a.state} ${a.pincode}`, a.country].filter(Boolean).join(", ");
+
 const Checkout = () => {
   const { user, loading: authLoading } = useAuth();
   const { items, total, clear } = useCart();
@@ -25,7 +44,18 @@ const Checkout = () => {
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
   const [phone, setPhone]     = useState("");
-  const [address, setAddress] = useState("");
+  const [line1, setLine1] = useState("");
+  const [line2, setLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [country, setCountry] = useState("India");
+  const [label, setLabel] = useState("Home");
+  const [saveForLater, setSaveForLater] = useState(true);
+
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("new");
+
   const [orderId] = useState(() => newOrderId());
   const [upi, setUpi] = useState(FALLBACK);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -43,6 +73,27 @@ const Checkout = () => {
       setEmail(user.email || "");
     }
   }, [user]);
+
+  useEffect(() => {
+    const a = loadAddresses();
+    setSavedAddresses(a);
+    if (a.length > 0) setSelectedId(a[0].id);
+  }, []);
+
+  const useSaved = (id: string) => {
+    setSelectedId(id);
+    if (id === "new") return;
+    const a = savedAddresses.find((x) => x.id === id);
+    if (!a) return;
+    setLine1(a.line1); setLine2(a.line2 || ""); setCity(a.city);
+    setStateName(a.state); setPincode(a.pincode); setCountry(a.country); setLabel(a.label);
+  };
+
+  const deleteSaved = (id: string) => {
+    const next = savedAddresses.filter((a) => a.id !== id);
+    setSavedAddresses(next); saveAddresses(next);
+    if (selectedId === id) setSelectedId(next[0]?.id || "new");
+  };
 
   useEffect(() => {
     settingsApi.get()
@@ -69,14 +120,24 @@ const Checkout = () => {
   };
 
   const submitOrder = async () => {
-    if (!name || !email || !address) { toast.error("Please fill name, email and address"); return; }
+    if (!name || !email) { toast.error("Please fill name and email"); return; }
+    if (!line1 || !city || !stateName || !pincode) { toast.error("Please complete the shipping address"); return; }
     if (items.length === 0) { toast.error("Cart is empty"); return; }
+
+    const addressBlock = { line1, line2, city, state: stateName, pincode, country };
+    const shipping_address = formatAddress(addressBlock);
+
+    if (saveForLater && selectedId === "new") {
+      const entry: SavedAddress = { id: crypto.randomUUID(), label: label || "Address", ...addressBlock };
+      const next = [entry, ...savedAddresses];
+      setSavedAddresses(next); saveAddresses(next);
+    }
 
     // Try to persist on the API first; always keep a local copy as fallback.
     try {
       await ordersApi.create({
         customer_name: name, customer_email: email, customer_phone: phone,
-        shipping_address: address,
+        shipping_address,
         total_amount: total,
         payment_method: "upi_qr",
         items: items.map((i) => ({
@@ -91,7 +152,7 @@ const Checkout = () => {
       id: orderId,
       user_uid: user?.uid ?? null,
       customer_name: name, customer_email: email, customer_phone: phone,
-      shipping_address: address,
+      shipping_address,
       items: items.map((i) => ({
         productId: i.productId, name: i.name, material: i.material,
         quantity: i.quantity, unit_price: i.price,
@@ -137,13 +198,58 @@ const Checkout = () => {
           {/* Left: details + items */}
           <div className="space-y-6">
             <div className="glass-card rounded-3xl p-6 md:p-8 space-y-5">
-              <h2 className="font-display text-xl font-semibold">Shipping details</h2>
+              <h2 className="font-display text-xl font-semibold">Contact details</h2>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5"><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} className="h-11 glass border-glass-border" /></div>
                 <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 glass border-glass-border" /></div>
                 <div className="space-y-1.5 sm:col-span-2"><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 …" className="h-11 glass border-glass-border" /></div>
-                <div className="space-y-1.5 sm:col-span-2"><Label>Shipping address</Label><Textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Door no, street, city, PIN" className="glass border-glass-border min-h-[88px]" /></div>
               </div>
+            </div>
+
+            <div className="glass-card rounded-3xl p-6 md:p-8 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl font-semibold flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Shipping address</h2>
+              </div>
+
+              {savedAddresses.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Saved addresses</Label>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {savedAddresses.map((a) => {
+                      const active = selectedId === a.id;
+                      return (
+                        <div key={a.id} className={`relative rounded-xl border p-3 text-sm cursor-pointer transition ${active ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`} onClick={() => useSaved(a.id)}>
+                          <div className="font-medium">{a.label}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{formatAddress(a)}</div>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); deleteSaved(a.id); }} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <button type="button" onClick={() => { setSelectedId("new"); setLine1(""); setLine2(""); setCity(""); setStateName(""); setPincode(""); setLabel("Home"); }} className={`rounded-xl border-2 border-dashed p-3 text-sm flex items-center justify-center gap-2 transition ${selectedId === "new" ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                      <Plus className="h-4 w-4" /> Add new address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2"><Label>Address label</Label><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Home / Office" className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5 sm:col-span-2"><Label>Address line 1</Label><Input value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Door no, building, street" className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5 sm:col-span-2"><Label>Address line 2 <span className="text-muted-foreground">(optional)</span></Label><Input value={line2} onChange={(e) => setLine2(e.target.value)} placeholder="Landmark, area" className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5"><Label>City</Label><Input value={city} onChange={(e) => setCity(e.target.value)} className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5"><Label>State</Label><Input value={stateName} onChange={(e) => setStateName(e.target.value)} className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5"><Label>Pincode</Label><Input value={pincode} onChange={(e) => setPincode(e.target.value)} inputMode="numeric" maxLength={10} className="h-11 glass border-glass-border" /></div>
+                <div className="space-y-1.5"><Label>Country</Label><Input value={country} onChange={(e) => setCountry(e.target.value)} className="h-11 glass border-glass-border" /></div>
+              </div>
+
+              {selectedId === "new" && (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <input type="checkbox" checked={saveForLater} onChange={(e) => setSaveForLater(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                  Save this address for future orders
+                </label>
+              )}
             </div>
 
             <div className="glass-card rounded-3xl p-6 md:p-8">

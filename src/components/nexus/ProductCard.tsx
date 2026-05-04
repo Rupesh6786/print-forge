@@ -26,14 +26,18 @@ export const ProductCard = ({ product }: { product: Product }) => (
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">{product.tagline}</p>
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground shrink-0">
             <Star className="h-3 w-3 fill-primary text-primary" />
             {product.rating}
           </div>
         </div>
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex sm:hidden items-center gap-1 text-xs text-muted-foreground">
+          <Star className="h-3 w-3 fill-primary text-primary" />
+          {product.rating}
+        </div>
+        <div className="flex items-center justify-between pt-1 sm:pt-2">
           <span className="font-display text-lg font-bold text-gradient">₹{product.price}</span>
-          <div className="flex gap-1">
+          <div className="hidden sm:flex gap-1">
             {product.materials.map((m) => (
               <span key={m} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{m}</span>
             ))}
