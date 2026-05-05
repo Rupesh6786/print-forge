@@ -14,6 +14,7 @@ const links = [
   { to: "/shop", label: "Shop" },
   { to: "/upload", label: "Upload STL" },
   { to: "/lithophane", label: "Lithophane" },
+  { to: "/contact", label: "Contact" },
   { to: "/admin", label: "Dashboard" },
 ];
 

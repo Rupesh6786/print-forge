@@ -51,56 +51,62 @@ const AdminLithophanes = () => {
             No lithophane requests yet.
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {list.map((l) => (
-              <div key={l.id} className="glass-card rounded-2xl overflow-hidden flex flex-col">
-                <a
-                  href={lithophaneImageUrl(l.id)}
-                  target="_blank" rel="noreferrer"
-                  className="block aspect-square bg-muted relative group"
-                >
-                  <img
-                    src={lithophaneImageUrl(l.id)}
-                    alt={`Lithophane #${l.id}`}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <span className="text-xs font-medium">Click to open / download</span>
-                  </div>
-                </a>
-                <div className="p-4 space-y-2 flex-1 flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <div className="font-display font-semibold">#{l.id} · {l.customer_name}</div>
-                    <a
-                      href={lithophaneImageUrl(l.id)}
-                      download={`lithophane-${l.id}.${(l.image_mime || "image/jpeg").split("/")[1]}`}
-                    >
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Download">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </a>
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    <div>{l.customer_email}</div>
-                    {l.customer_phone && <div>{l.customer_phone}</div>}
-                    <div className="font-mono">Color: {l.color} · Size: {l.size}</div>
-                    {l.notes && <div className="italic">"{l.notes}"</div>}
-                    <div>{new Date(l.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="mt-auto">
-                    <Select value={l.status} onValueChange={(v) => updateStatus(l.id, v as any)}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {STATUSES.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3">Preview</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Specs</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Image</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((l) => (
+                    <tr key={l.id} className="border-t border-border/50 hover:bg-muted/30">
+                      <td className="px-4 py-3">
+                        <a href={lithophaneImageUrl(l.id)} target="_blank" rel="noreferrer">
+                          <img src={lithophaneImageUrl(l.id)} alt={`Lithophane #${l.id}`}
+                               className="h-14 w-14 rounded-md object-cover bg-muted" loading="lazy" />
+                        </a>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium">#{l.id} · {l.customer_name}</div>
+                        <div className="text-xs text-muted-foreground">{l.customer_email}</div>
+                        {l.customer_phone && <div className="text-xs text-muted-foreground">{l.customer_phone}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="font-mono">Color: {l.color}</div>
+                        <div className="font-mono">Size: {l.size}</div>
+                        {l.notes && <div className="italic text-muted-foreground mt-1 max-w-[220px] truncate">"{l.notes}"</div>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(l.created_at).toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <Select value={l.status} onValueChange={(v) => updateStatus(l.id, v as any)}>
+                          <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {STATUSES.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <a href={lithophaneImageUrl(l.id)}
+                           download={`lithophane-${l.id}.${(l.image_mime || "image/jpeg").split("/")[1]}`}>
+                          <Button size="sm" variant="ghost" className="gap-1.5">
+                            <Download className="h-3.5 w-3.5" /> Download
+                          </Button>
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
