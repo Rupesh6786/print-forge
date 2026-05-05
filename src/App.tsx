@@ -29,6 +29,7 @@ import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminServices from "./pages/admin/AdminServices.tsx";
 import AdminLithophanes from "./pages/admin/AdminLithophanes.tsx";
+import AdminCustomStl from "./pages/admin/AdminCustomStl.tsx";
 import AdminQuotes from "./pages/admin/AdminQuotes.tsx";
 import AdminEnquiries from "./pages/admin/AdminEnquiries.tsx";
 import AdminAnalytics from "./pages/admin/AdminAnalytics.tsx";
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/services" element={<AdminServices />} />
               <Route path="/admin/lithophanes" element={<AdminLithophanes />} />
+          <Route path="/admin/custom-stl" element={<AdminCustomStl />} />
               <Route path="/admin/quotes" element={<AdminQuotes />} />
               <Route path="/admin/enquiries" element={<AdminEnquiries />} />
               <Route path="/admin/analytics" element={<AdminAnalytics />} />
