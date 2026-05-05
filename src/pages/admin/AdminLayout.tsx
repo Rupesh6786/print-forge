@@ -2,7 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingBag, Users, ChevronLeft, Sun, Moon,
-  Wrench, FileText, Mail, BarChart3, Settings as SettingsIcon, LogOut, Menu, X, Image as ImageIcon
+  Wrench, FileText, Mail, BarChart3, Settings as SettingsIcon, LogOut, Menu, X, Image as ImageIcon, FileBox
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/context/ThemeContext";
@@ -16,6 +16,7 @@ const navItems = [
   { to: "/admin/orders",    label: "Orders",            icon: ShoppingBag },
   { to: "/admin/services",  label: "Services",          icon: Wrench },
   { to: "/admin/lithophanes", label: "Lithophanes",     icon: ImageIcon },
+  { to: "/admin/custom-stl",  label: "Custom STL",      icon: FileBox },
   { to: "/admin/quotes",    label: "Quotes",            icon: FileText },
   { to: "/admin/enquiries", label: "Enquiries",         icon: Mail },
   { to: "/admin/users",     label: "Users",             icon: Users },
