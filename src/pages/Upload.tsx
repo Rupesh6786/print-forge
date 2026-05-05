@@ -14,22 +14,27 @@ const materials = [
 ];
 
 const Upload = () => {
-  const [file, setFile] = useState<FileMeta | null>(null);
+  const [files, setFiles] = useState<FileMeta[]>([]);
   const [dragging, setDragging] = useState(false);
   const [material, setMaterial] = useState("PLA");
   const [infill, setInfill] = useState([20]);
   const [quality, setQuality] = useState([0.2]); // layer height mm
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const f = files[0];
-    if (!f.name.toLowerCase().endsWith(".stl")) {
-      toast.error("Please upload an STL file");
-      return;
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    const accepted: FileMeta[] = [];
+    for (const f of Array.from(incoming)) {
+      if (!f.name.toLowerCase().endsWith(".stl")) {
+        toast.error(`Skipped ${f.name} — not an STL file`);
+        continue;
+      }
+      accepted.push({ name: f.name, sizeMB: +(f.size / 1024 / 1024).toFixed(2) });
     }
-    setFile({ name: f.name, sizeMB: +(f.size / 1024 / 1024).toFixed(2) });
-    toast.success("STL uploaded", { description: f.name });
+    if (accepted.length) {
+      setFiles((prev) => [...prev, ...accepted]);
+      toast.success(`${accepted.length} STL file${accepted.length > 1 ? "s" : ""} added`);
+    }
   };
 
   const onDrop = (e: DragEvent) => {
@@ -38,9 +43,10 @@ const Upload = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  // Pricing estimator (simulated): volume ≈ sizeMB * 8 cm³, weight = volume × density × infill%
+  // Pricing estimator (simulated) — sums across all uploaded files
   const mat = materials.find((m) => m.id === material)!;
-  const volumeCm3 = file ? file.sizeMB * 8 : 0;
+  const totalSizeMB = files.reduce((s, f) => s + f.sizeMB, 0);
+  const volumeCm3 = totalSizeMB * 8;
   const effectiveVolume = volumeCm3 * (0.3 + (infill[0] / 100) * 0.7);
   const weightG = +(effectiveVolume * mat.density).toFixed(1);
   const materialCost = +(weightG * mat.costPerGram).toFixed(2);
@@ -77,34 +83,41 @@ const Upload = () => {
                 ref={inputRef}
                 type="file"
                 accept=".stl"
+                multiple
                 className="hidden"
                 onChange={(e) => handleFiles(e.target.files)}
               />
-              {!file ? (
+              {files.length === 0 ? (
                 <>
                   <div className="relative mx-auto h-20 w-20 rounded-2xl bg-aurora flex items-center justify-center mb-4 animate-glow-pulse">
                     <UploadIcon className="h-10 w-10 text-primary-foreground" />
                   </div>
-                  <h3 className="font-display text-xl font-semibold mb-2">Drop your .STL file here</h3>
-                  <p className="text-sm text-muted-foreground mb-4">or click to browse · Max 100 MB</p>
-                  <Button variant="glass" type="button">Choose file</Button>
+                  <h3 className="font-display text-xl font-semibold mb-2">Drop your .STL files here</h3>
+                  <p className="text-sm text-muted-foreground mb-4">or click to browse · select multiple · Max 100 MB each</p>
+                  <Button variant="glass" type="button">Choose files</Button>
                 </>
               ) : (
-                <div className="flex items-center gap-4 text-left">
-                  <div className="h-14 w-14 rounded-xl bg-aurora flex items-center justify-center shrink-0">
-                    <FileBox className="h-7 w-7 text-primary-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-display font-semibold truncate">{file.name}</div>
-                    <div className="text-sm text-muted-foreground font-mono">{file.sizeMB} MB · ready to slice</div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                <div className="space-y-2 text-left">
+                  {files.map((f, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
+                      <div className="h-10 w-10 rounded-lg bg-aurora flex items-center justify-center shrink-0">
+                        <FileBox className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate text-sm">{f.name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{f.sizeMB} MB</div>
+                      </div>
+                      <Button
+                        variant="ghost" size="icon"
+                        onClick={(e) => { e.stopPropagation(); setFiles((p) => p.filter((_, i) => i !== idx)); }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    Click anywhere above to add more STL files
+                  </p>
                 </div>
               )}
             </div>
@@ -167,12 +180,13 @@ const Upload = () => {
                 <span>Live pricing estimate</span>
               </div>
 
-              {!file ? (
+              {files.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground text-sm">
-                  Upload an STL to see your quote
+                  Upload one or more STLs to see your quote
                 </div>
               ) : (
                 <>
+                  <div className="text-xs text-muted-foreground">{files.length} file{files.length > 1 ? "s" : ""} · {totalSizeMB.toFixed(2)} MB total</div>
                   <div className="grid grid-cols-3 gap-3">
                     <Stat icon={Weight} label="Weight" value={`${weightG}g`} />
                     <Stat icon={Clock} label="Time" value={`${machineHours}h`} />
@@ -180,15 +194,15 @@ const Upload = () => {
                   </div>
 
                   <div className="space-y-2 text-sm pt-2 border-t border-border/50">
-                    <Row label={`Material (${material})`} value={`$${materialCost}`} />
-                    <Row label={`Machine time`} value={`$${machineCost}`} />
-                    <Row label="Setup & QC" value={`$${setupFee}`} />
+                    <Row label={`Material (${material})`} value={`₹${materialCost}`} />
+                    <Row label={`Machine time`} value={`₹${machineCost}`} />
+                    <Row label="Setup & QC" value={`₹${setupFee}`} />
                   </div>
 
                   <div className="pt-4 border-t border-border/50">
                     <div className="flex items-end justify-between">
                       <span className="text-sm text-muted-foreground">Total</span>
-                      <span className="font-display text-3xl font-bold text-gradient">${total}</span>
+                      <span className="font-display text-3xl font-bold text-gradient">₹{total}</span>
                     </div>
                   </div>
 
@@ -196,7 +210,7 @@ const Upload = () => {
                     variant="aurora"
                     size="lg"
                     className="w-full"
-                    onClick={() => toast.success("Quote locked in", { description: `Total: $${total}` })}
+                    onClick={() => toast.success("Quote locked in", { description: `Total: ₹${total}` })}
                   >
                     Continue to checkout
                   </Button>
