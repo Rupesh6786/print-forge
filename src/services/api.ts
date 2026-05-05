@@ -117,7 +117,27 @@ export const stl = {
     request<{ price: number; weightGrams: number; printHours: number }>("/stl/quote", {
       method: "POST", body: { sizeBytes, material, infill }, authed: true,
     }),
+  listAdmin: () => request<ApiStlUpload[]>("/admin/stl-uploads", { authed: true }),
 };
+
+export interface ApiStlUpload {
+  id: number;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  user_id: number | null;
+  created_at: string;
+  quote_id: number | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  material: string | null;
+  estimated_price: number | null;
+  quote_status: string | null;
+  notes: string | null;
+  user_email: string | null;
+  user_display_name: string | null;
+}
 
 export const quotesApi = {
   list:   () => request<any[]>("/admin/quotes", { authed: true }),
