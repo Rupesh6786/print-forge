@@ -7,11 +7,19 @@ import { toast } from "sonner";
 
 interface FileMeta { name: string; sizeMB: number }
 
+// Pricing: Mumbai-based rates (INR)
+// Standard tier (PLA/PETG): ₹10–15/g material, ₹30–45/hr machine, ₹150 setup
+// Premium tier (TPU/ABS): ₹20–30/g material, ₹60/hr machine, ₹250 setup
 const materials = [
-  { id: "PLA", name: "PLA", desc: "Easy, biodegradable, matte", density: 1.24, costPerGram: 0.05, color: "from-emerald-400 to-cyan-400" },
-  { id: "ABS", name: "ABS", desc: "Tough, heat-resistant", density: 1.04, costPerGram: 0.07, color: "from-blue-400 to-indigo-500" },
-  { id: "Resin", name: "Resin", desc: "High-detail, smooth surface", density: 1.18, costPerGram: 0.18, color: "from-violet-400 to-fuchsia-500" },
+  { id: "PLA", name: "PLA", desc: "Standard · Easy, biodegradable, matte", density: 1.24, costPerGram: 12, machineRate: 38, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
+  { id: "PETG", name: "PETG", desc: "Standard · Strong, food-safe, glossy", density: 1.27, costPerGram: 14, machineRate: 42, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
+  { id: "ABS", name: "ABS", desc: "Premium · Tough, heat-resistant", density: 1.04, costPerGram: 25, machineRate: 60, setupFee: 250, tier: "Premium", color: "from-blue-400 to-indigo-500" },
+  { id: "TPU", name: "TPU", desc: "Premium · Flexible, rubber-like", density: 1.21, costPerGram: 28, machineRate: 60, setupFee: 250, tier: "Premium", color: "from-violet-400 to-fuchsia-500" },
 ];
+
+// Mumbai delivery: Local ₹80–150 (Dunzo/Borzo), Suburbs/Outstation ₹200+
+const LOCAL_DELIVERY = 120;
+const OUTSTATION_DELIVERY = 220;
 
 const Upload = () => {
   const [files, setFiles] = useState<FileMeta[]>([]);
@@ -43,7 +51,7 @@ const Upload = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  // Pricing estimator (simulated) — sums across all uploaded files
+  // Pricing estimator (Mumbai INR rates) — sums across all uploaded files
   const mat = materials.find((m) => m.id === material)!;
   const totalSizeMB = files.reduce((s, f) => s + f.sizeMB, 0);
   const volumeCm3 = totalSizeMB * 8;
@@ -51,9 +59,10 @@ const Upload = () => {
   const weightG = +(effectiveVolume * mat.density).toFixed(1);
   const materialCost = +(weightG * mat.costPerGram).toFixed(2);
   const machineHours = +(volumeCm3 * (0.5 / quality[0])).toFixed(1) / 10;
-  const machineCost = +(machineHours * 2.5).toFixed(2);
-  const setupFee = 5;
-  const total = +(materialCost + machineCost + setupFee).toFixed(2);
+  const machineCost = +(machineHours * mat.machineRate).toFixed(2);
+  const setupFee = mat.setupFee;
+  const deliveryFee = LOCAL_DELIVERY;
+  const total = +(materialCost + machineCost + setupFee + deliveryFee).toFixed(2);
 
   return (
     <PageShell>
@@ -127,7 +136,7 @@ const Upload = () => {
               <h3 className="font-display font-semibold mb-3 flex items-center gap-2">
                 <Layers className="h-4 w-4 text-primary" /> Material
               </h3>
-              <div className="grid sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {materials.map((m) => (
                   <button
                     key={m.id}
@@ -144,7 +153,7 @@ const Upload = () => {
                       {material === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">{m.desc}</div>
-                    <div className="text-xs font-mono text-muted-foreground mt-2">${m.costPerGram}/g · {m.density} g/cm³</div>
+                    <div className="text-xs font-mono text-muted-foreground mt-2">₹{m.costPerGram}/g · {m.density} g/cm³</div>
                   </button>
                 ))}
               </div>
@@ -195,8 +204,9 @@ const Upload = () => {
 
                   <div className="space-y-2 text-sm pt-2 border-t border-border/50">
                     <Row label={`Material (${material})`} value={`₹${materialCost}`} />
-                    <Row label={`Machine time`} value={`₹${machineCost}`} />
-                    <Row label="Setup & QC" value={`₹${setupFee}`} />
+                    <Row label={`Machine time (₹${mat.machineRate}/hr)`} value={`₹${machineCost}`} />
+                    <Row label={`Setup & QC (${mat.tier})`} value={`₹${setupFee}`} />
+                    <Row label="Delivery (Mumbai local)" value={`₹${deliveryFee}`} />
                   </div>
 
                   <div className="pt-4 border-t border-border/50">
@@ -215,7 +225,7 @@ const Upload = () => {
                     Continue to checkout
                   </Button>
                   <p className="text-[11px] text-muted-foreground text-center">
-                    Razorpay secure checkout · Free reprints if imperfect
+                    Razorpay secure checkout · Free reprints if imperfect · Outstation delivery from ₹{OUTSTATION_DELIVERY}
                   </p>
                 </>
               )}
