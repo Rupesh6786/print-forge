@@ -329,6 +329,21 @@ app.get('/admin/quotes', authRequired, adminRequired, async (_req, res) => {
   res.json(rows);
 });
 
+// Admin: list all STL uploads (custom STL print orders) with optional quote info
+app.get('/admin/stl-uploads', authRequired, adminRequired, async (_req, res) => {
+  const [rows] = await pool.query(
+    `SELECT s.id, s.filename, s.mime_type, s.size_bytes, s.user_id, s.created_at,
+            q.id AS quote_id, q.customer_name, q.customer_email, q.customer_phone,
+            q.material, q.estimated_price, q.status AS quote_status, q.notes,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM stl_uploads s
+       LEFT JOIN quotes q ON q.stl_upload_id = s.id
+       LEFT JOIN users  u ON u.id = s.user_id
+      ORDER BY s.created_at DESC`
+  );
+  res.json(rows);
+});
+
 // ════════════════════════════════════════════════════════════
 //                       ENQUIRIES
 // ════════════════════════════════════════════════════════════
