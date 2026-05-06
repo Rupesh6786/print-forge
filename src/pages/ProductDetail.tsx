@@ -17,6 +17,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [material, setMaterial] = useState<string>("PLA");
+  const [color, setColor] = useState<string>("");
   const [qty, setQty] = useState(1);
   const [gallery, setGallery] = useState<string[]>([]);
   const [activeImage, setActiveImage] = useState<string | null>(null);
@@ -33,6 +34,7 @@ const ProductDetail = () => {
         if (cancelled) return;
         const m = mapApiProduct(p);
         setProduct(m); setMaterial(m.materials[0] ?? "PLA");
+        setColor(m.colors?.[0] ?? "");
         setActiveImage(m.image);
         productsApi.images(p.id)
           .then((rows) => { if (!cancelled) setGallery(rows.map((r) => productGalleryImageUrl(r.id))); })
@@ -75,12 +77,12 @@ const ProductDetail = () => {
   };
 
   const addToCart = () => requireAuth(() => {
-    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material: color ? `${material} · ${color}` : material, quantity: qty });
     toast.success(`${product.name} added to cart`, { description: `${qty} × ${material}` });
   });
 
   const buyNow = () => requireAuth(() => {
-    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material: color ? `${material} · ${color}` : material, quantity: qty });
     navigate("/checkout");
   });
 
