@@ -13,4 +13,5 @@ export const mapApiProduct = (p: ApiProduct): Product => ({
   stock: Number(p.stock) || 0,
   rating: Number(p.rating) || 0,
   description: p.description ?? "",
+  colors: (p.colors || "").split(",").map((c) => c.trim()).filter(Boolean),
 });
