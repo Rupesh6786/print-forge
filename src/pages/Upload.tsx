@@ -1,32 +1,67 @@
 import { useState, useRef, DragEvent } from "react";
-import { Upload as UploadIcon, FileBox, X, Check, Calculator, Layers, Clock, Weight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Upload as UploadIcon, FileBox, X, Check, Calculator, Layers, Clock, Weight, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
+import { stl } from "@/services/api";
 
-interface FileMeta { name: string; sizeMB: number }
+interface FileMeta { name: string; sizeMB: number; file: File }
 
-// Pricing: Mumbai-based rates (INR)
-// Standard tier (PLA/PETG): ₹10–15/g material, ₹30–45/hr machine, ₹150 setup
-// Premium tier (TPU/ABS): ₹20–30/g material, ₹60/hr machine, ₹250 setup
+// ─── Material properties (Mumbai market) ──────────────────────
+// Density g/cm³, price/gram INR, speedMultiplier (>1 faster, <1 slower)
 const materials = [
-  { id: "PLA", name: "PLA", desc: "Standard · Easy, biodegradable, matte", density: 1.24, costPerGram: 12, machineRate: 38, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
-  { id: "PETG", name: "PETG", desc: "Standard · Strong, food-safe, glossy", density: 1.27, costPerGram: 14, machineRate: 42, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
-  { id: "ABS", name: "ABS", desc: "Premium · Tough, heat-resistant", density: 1.04, costPerGram: 25, machineRate: 60, setupFee: 250, tier: "Premium", color: "from-blue-400 to-indigo-500" },
-  { id: "TPU", name: "TPU", desc: "Premium · Flexible, rubber-like", density: 1.21, costPerGram: 28, machineRate: 60, setupFee: 250, tier: "Premium", color: "from-violet-400 to-fuchsia-500" },
-];
+  { id: "PLA",  name: "PLA",  desc: "Standard · Easy, low warp",         density: 1.24, pricePerGram: 1.2, speedMultiplier: 1.0, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
+  { id: "PETG", name: "PETG", desc: "Standard · Strong, weather-proof",  density: 1.27, pricePerGram: 1.4, speedMultiplier: 0.8, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
+  { id: "ABS",  name: "ABS",  desc: "Premium · Heat resistant",          density: 1.04, pricePerGram: 1.1, speedMultiplier: 0.9, setupFee: 250, tier: "Premium",  color: "from-blue-400 to-indigo-500" },
+  { id: "TPU",  name: "TPU",  desc: "Premium · Flexible, rubber-like",   density: 1.21, pricePerGram: 2.2, speedMultiplier: 0.4, setupFee: 250, tier: "Premium",  color: "from-violet-400 to-fuchsia-500" },
+] as const;
 
-// Mumbai delivery: Local ₹80–150 (Dunzo/Borzo), Suburbs/Outstation ₹200+
-const LOCAL_DELIVERY = 120;
-const OUTSTATION_DELIVERY = 220;
+// Mumbai delivery: Local ₹70 (Dunzo/Borzo), Outstation ₹160+
+const LOCAL_DELIVERY = 70;
+const OUTSTATION_DELIVERY = 160;
+// Printer power 150W @ ₹9/kWh
+const ELECTRICITY_RATE = 9 * 0.15; // ₹/hour
+
+/**
+ * Advanced cost estimator — accounts for shell + infill volume,
+ * material density, layer height (time), and electricity.
+ * `volumeCm3` is the bounding-volume estimate from the STL size.
+ */
+function calculateAdvancedCost(volumeCm3: number, mat: typeof materials[number], infillPct: number, layerHeight: number) {
+  const shellVolume  = volumeCm3 * 0.15;
+  const infillVolume = volumeCm3 * 0.85 * (infillPct / 100);
+  const weightG = (shellVolume + infillVolume) * mat.density;
+
+  // Base 1 hour per 10cm³ at 0.2mm layer height
+  const baseTime = volumeCm3 / 10;
+  const timeAdjust = 0.2 / layerHeight;
+  const totalHours = (baseTime * timeAdjust) / mat.speedMultiplier;
+
+  const materialCost   = weightG * mat.pricePerGram;
+  const electricityCost = totalHours * ELECTRICITY_RATE;
+  return {
+    weightG: +weightG.toFixed(2),
+    totalHours: +totalHours.toFixed(2),
+    materialCost: +materialCost.toFixed(2),
+    electricityCost: +electricityCost.toFixed(2),
+  };
+}
 
 const Upload = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { add } = useCart();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [dragging, setDragging] = useState(false);
   const [material, setMaterial] = useState("PLA");
   const [infill, setInfill] = useState([20]);
   const [quality, setQuality] = useState([0.2]); // layer height mm
+  const [delivery, setDelivery] = useState<"local" | "outstation">("local");
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (incoming: FileList | null) => {
@@ -37,7 +72,7 @@ const Upload = () => {
         toast.error(`Skipped ${f.name} — not an STL file`);
         continue;
       }
-      accepted.push({ name: f.name, sizeMB: +(f.size / 1024 / 1024).toFixed(2) });
+      accepted.push({ name: f.name, sizeMB: +(f.size / 1024 / 1024).toFixed(2), file: f });
     }
     if (accepted.length) {
       setFiles((prev) => [...prev, ...accepted]);
@@ -51,18 +86,51 @@ const Upload = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  // Pricing estimator (Mumbai INR rates) — sums across all uploaded files
+  // Live advanced estimator
   const mat = materials.find((m) => m.id === material)!;
   const totalSizeMB = files.reduce((s, f) => s + f.sizeMB, 0);
+  // Approximate volume from file size — STL ASCII/binary is roughly proportional
   const volumeCm3 = totalSizeMB * 8;
-  const effectiveVolume = volumeCm3 * (0.3 + (infill[0] / 100) * 0.7);
-  const weightG = +(effectiveVolume * mat.density).toFixed(1);
-  const materialCost = +(weightG * mat.costPerGram).toFixed(2);
-  const machineHours = +(volumeCm3 * (0.5 / quality[0])).toFixed(1) / 10;
-  const machineCost = +(machineHours * mat.machineRate).toFixed(2);
-  const setupFee = mat.setupFee;
-  const deliveryFee = LOCAL_DELIVERY;
-  const total = +(materialCost + machineCost + setupFee + deliveryFee).toFixed(2);
+  const est = calculateAdvancedCost(volumeCm3, mat, infill[0], quality[0]);
+  const setupFee    = mat.setupFee;
+  const deliveryFee = delivery === "local" ? LOCAL_DELIVERY : OUTSTATION_DELIVERY;
+  const total = Math.ceil(est.materialCost + est.electricityCost + setupFee + deliveryFee);
+
+  const proceedToCheckout = async () => {
+    if (files.length === 0) { toast.error("Add at least one STL file first"); return; }
+    if (!user) {
+      toast.info("Please sign in to continue");
+      navigate("/login", { state: { from: "/upload" } });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Upload all STL files to the API (best-effort — keep going on failures)
+      const uploadedIds: number[] = [];
+      for (const f of files) {
+        try {
+          const r = await stl.upload(f.file);
+          uploadedIds.push(r.id);
+        } catch (e: any) {
+          console.warn("STL upload failed for", f.name, e?.message);
+        }
+      }
+      // Add a single line item representing the print job to the cart
+      const fileNames = files.map((f) => f.name).join(", ");
+      add({
+        productId: `stl-${Date.now()}`,
+        name: `Custom STL print (${files.length} file${files.length > 1 ? "s" : ""})`,
+        image: "/placeholder.svg",
+        price: total,
+        material: `${material} · ${infill[0]}% infill · ${quality[0]}mm`,
+        quantity: 1,
+      });
+      toast.success("Quote added to cart", { description: `Files: ${fileNames}` });
+      navigate("/checkout");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <PageShell>
@@ -203,10 +271,23 @@ const Upload = () => {
                   </div>
 
                   <div className="space-y-2 text-sm pt-2 border-t border-border/50">
-                    <Row label={`Material (${material})`} value={`₹${materialCost}`} />
-                    <Row label={`Machine time (₹${mat.machineRate}/hr)`} value={`₹${machineCost}`} />
+                    <Row label={`Material (${material})`} value={`₹${est.materialCost.toFixed(2)}`} />
+                    <Row label={`Electricity (${est.totalHours}h)`} value={`₹${est.electricityCost.toFixed(2)}`} />
                     <Row label={`Setup & QC (${mat.tier})`} value={`₹${setupFee}`} />
-                    <Row label="Delivery (Mumbai local)" value={`₹${deliveryFee}`} />
+                    <Row label={`Delivery (${delivery === "local" ? "Mumbai" : "Outstation"})`} value={`₹${deliveryFee}`} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("local")}
+                      className={`p-2 rounded-lg text-xs border transition ${delivery === "local" ? "border-primary bg-primary/10" : "border-border"}`}
+                    >Mumbai · ₹{LOCAL_DELIVERY}</button>
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("outstation")}
+                      className={`p-2 rounded-lg text-xs border transition ${delivery === "outstation" ? "border-primary bg-primary/10" : "border-border"}`}
+                    >Outstation · ₹{OUTSTATION_DELIVERY}</button>
                   </div>
 
                   <div className="pt-4 border-t border-border/50">
@@ -220,8 +301,10 @@ const Upload = () => {
                     variant="aurora"
                     size="lg"
                     className="w-full"
-                    onClick={() => toast.success("Quote locked in", { description: `Total: ₹${total}` })}
+                    onClick={proceedToCheckout}
+                    disabled={submitting}
                   >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                     Continue to checkout
                   </Button>
                   <p className="text-[11px] text-muted-foreground text-center">
