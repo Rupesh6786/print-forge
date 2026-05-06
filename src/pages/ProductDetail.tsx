@@ -12,11 +12,20 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 
+const COLOR_HEX: Record<string, string> = {
+  black: "#1a1a1a", white: "#f5f5f5", grey: "#808080", gray: "#808080",
+  red: "#dc2626", orange: "#ea580c", yellow: "#facc15", green: "#16a34a",
+  blue: "#2563eb", purple: "#7c3aed", pink: "#ec4899",
+  gold: "#d4af37", silver: "#c0c0c0",
+  transparent: "repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 8px 8px",
+};
+
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [material, setMaterial] = useState<string>("PLA");
+  const [color, setColor] = useState<string>("");
   const [qty, setQty] = useState(1);
   const [gallery, setGallery] = useState<string[]>([]);
   const [activeImage, setActiveImage] = useState<string | null>(null);
@@ -33,6 +42,7 @@ const ProductDetail = () => {
         if (cancelled) return;
         const m = mapApiProduct(p);
         setProduct(m); setMaterial(m.materials[0] ?? "PLA");
+        setColor(m.colors?.[0] ?? "");
         setActiveImage(m.image);
         productsApi.images(p.id)
           .then((rows) => { if (!cancelled) setGallery(rows.map((r) => productGalleryImageUrl(r.id))); })
@@ -75,12 +85,12 @@ const ProductDetail = () => {
   };
 
   const addToCart = () => requireAuth(() => {
-    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material: color ? `${material} · ${color}` : material, quantity: qty });
     toast.success(`${product.name} added to cart`, { description: `${qty} × ${material}` });
   });
 
   const buyNow = () => requireAuth(() => {
-    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material, quantity: qty });
+    add({ productId: product.id, name: product.name, image: product.image, price: unitPrice, material: color ? `${material} · ${color}` : material, quantity: qty });
     navigate("/checkout");
   });
 
@@ -192,6 +202,31 @@ const ProductDetail = () => {
                 <Button variant="glass" size="icon" onClick={() => setQty((q) => q + 1)}>+</Button>
               </div>
             </div>
+
+            {product.colors && product.colors.length > 0 && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((c) => {
+                    const active = color === c;
+                    const hex = COLOR_HEX[c.toLowerCase()] || "#999";
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setColor(c)}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                          active ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <span className="h-3.5 w-3.5 rounded-full border border-border/60" style={{ background: hex }} />
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>

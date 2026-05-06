@@ -56,6 +56,7 @@ export interface ApiProduct {
   image_mime: string | null;
   image_url?: string;     // server returns "/products/:id/image"
   materials: string;       // CSV: "PLA,ABS"
+  colors?: string | null;  // CSV of available colors, e.g. "Black,White"
   stock: number;
   rating: number;
   is_active: number;

@@ -107,7 +107,7 @@ app.get('/health', async (_req, res) => {
 app.get('/products', async (_req, res) => {
   const [rows] = await pool.query(
     `SELECT p.id,p.name,p.tagline,p.description,p.price,p.category_id,c.name AS category_name,
-            p.image_mime,p.materials,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
+            p.image_mime,p.materials,p.colors,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_active=1
@@ -119,7 +119,7 @@ app.get('/products', async (_req, res) => {
 app.get('/products/:id', async (req, res) => {
   const [rows] = await pool.query(
     `SELECT p.id,p.name,p.tagline,p.description,p.price,p.category_id,c.name AS category_name,
-            p.image_mime,p.materials,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
+            p.image_mime,p.materials,p.colors,p.stock,p.rating,p.is_active,p.created_at,p.updated_at
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.id=?`,
@@ -157,25 +157,25 @@ app.get('/products/:id/image', async (req, res) => {
 
 // Admin: create product (multipart with `image` file field)
 app.post('/admin/products', authRequired, adminRequired, upload.single('image'), async (req, res) => {
-  const { name, tagline, description, price, category_id, materials, stock, rating } = req.body;
+  const { name, tagline, description, price, category_id, materials, colors, stock, rating } = req.body;
   const blob = req.file ? req.file.buffer : null;
   const mime = req.file ? req.file.mimetype : null;
   const [r] = await pool.query(
-    `INSERT INTO products (name,tagline,description,price,category_id,image_blob,image_mime,materials,stock,rating)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [name, tagline || null, description || null, price, category_id || null, blob, mime, materials || 'PLA', stock || 0, rating || 0]
+    `INSERT INTO products (name,tagline,description,price,category_id,image_blob,image_mime,materials,colors,stock,rating)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [name, tagline || null, description || null, price, category_id || null, blob, mime, materials || 'PLA', colors || null, stock || 0, rating || 0]
   );
   res.json({ id: r.insertId });
 });
 
 // Admin: update product (image optional)
 app.put('/admin/products/:id', authRequired, adminRequired, upload.single('image'), async (req, res) => {
-  const { name, tagline, description, price, category_id, materials, stock, rating, is_active } = req.body;
+  const { name, tagline, description, price, category_id, materials, colors, stock, rating, is_active } = req.body;
   const fields = [];
   const vals   = [];
   const set = (k, v) => { if (v !== undefined) { fields.push(`${k}=?`); vals.push(v); } };
   set('name', name); set('tagline', tagline); set('description', description);
-  set('price', price); set('category_id', category_id); set('materials', materials);
+  set('price', price); set('category_id', category_id); set('materials', materials); set('colors', colors);
   set('stock', stock); set('rating', rating); set('is_active', is_active);
   if (req.file) { fields.push('image_blob=?', 'image_mime=?'); vals.push(req.file.buffer, req.file.mimetype); }
   if (!fields.length) return res.json({ ok: true });

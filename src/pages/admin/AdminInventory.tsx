@@ -23,6 +23,7 @@ interface FormState {
   stock: string;
   rating: string;
   materials: string;     // CSV
+  colors: string;        // CSV of selected colors
   category_id: string;
   is_active: string;
   imageFile: File | null;
@@ -30,8 +31,25 @@ interface FormState {
 }
 const blankForm: FormState = {
   name: "", tagline: "", description: "", price: "", stock: "0",
-  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
+  rating: "0", materials: "PLA", colors: "", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
 };
+
+// Curated color palette admins can pick from
+const COLOR_OPTIONS: { name: string; hex: string }[] = [
+  { name: "Black",  hex: "#1a1a1a" },
+  { name: "White",  hex: "#f5f5f5" },
+  { name: "Grey",   hex: "#808080" },
+  { name: "Red",    hex: "#dc2626" },
+  { name: "Orange", hex: "#ea580c" },
+  { name: "Yellow", hex: "#facc15" },
+  { name: "Green",  hex: "#16a34a" },
+  { name: "Blue",   hex: "#2563eb" },
+  { name: "Purple", hex: "#7c3aed" },
+  { name: "Pink",   hex: "#ec4899" },
+  { name: "Gold",   hex: "#d4af37" },
+  { name: "Silver", hex: "#c0c0c0" },
+  { name: "Transparent", hex: "transparent" },
+];
 
 const AdminInventory = () => {
   const [list, setList]     = useState<ApiProduct[]>([]);
@@ -74,6 +92,7 @@ const AdminInventory = () => {
       stock: String(p.stock ?? 0),
       rating: String(p.rating ?? 0),
       materials: p.materials ?? "PLA",
+      colors: (p as any).colors ?? "",
       category_id: p.category_id ? String(p.category_id) : "",
       is_active: String(p.is_active ?? 1),
       imageFile: null,
@@ -129,6 +148,7 @@ const AdminInventory = () => {
       fd.append("stock", form.stock || "0");
       fd.append("rating", form.rating || "0");
       fd.append("materials", form.materials || "PLA");
+      fd.append("colors", form.colors || "");
       if (form.category_id) fd.append("category_id", form.category_id);
       fd.append("is_active", form.is_active);
       if (form.imageFile) fd.append("image", form.imageFile);
@@ -267,6 +287,35 @@ const AdminInventory = () => {
                 </div>
               </div>
               <Field label="Materials (CSV)" value={form.materials} onChange={(v) => setForm({ ...form, materials: v })} placeholder="PLA,ABS,Resin" mono />
+              <div className="space-y-1.5">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Available colors</Label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_OPTIONS.map((c) => {
+                    const selected = form.colors.split(",").map((s) => s.trim()).filter(Boolean);
+                    const active = selected.includes(c.name);
+                    return (
+                      <button
+                        type="button"
+                        key={c.name}
+                        onClick={() => {
+                          const next = active ? selected.filter((s) => s !== c.name) : [...selected, c.name];
+                          setForm({ ...form, colors: next.join(",") });
+                        }}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                          active ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border border-border/60"
+                          style={{ background: c.hex === "transparent" ? "repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 8px 8px" : c.hex }}
+                        />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Select every color this product can be printed in. Customers will pick from these on the product page.</p>
+              </div>
               <div className="flex items-center gap-2">
                 <input id="active" type="checkbox" checked={form.is_active === "1"}
                        onChange={(e) => setForm({ ...form, is_active: e.target.checked ? "1" : "0" })} />
