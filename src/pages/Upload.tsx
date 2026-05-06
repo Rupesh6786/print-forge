@@ -221,7 +221,7 @@ const Upload = () => {
                       {material === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">{m.desc}</div>
-                    <div className="text-xs font-mono text-muted-foreground mt-2">₹{m.costPerGram}/g · {m.density} g/cm³</div>
+                    <div className="text-xs font-mono text-muted-foreground mt-2">₹{m.pricePerGram}/g · {m.density} g/cm³</div>
                   </button>
                 ))}
               </div>
@@ -265,8 +265,8 @@ const Upload = () => {
                 <>
                   <div className="text-xs text-muted-foreground">{files.length} file{files.length > 1 ? "s" : ""} · {totalSizeMB.toFixed(2)} MB total</div>
                   <div className="grid grid-cols-3 gap-3">
-                    <Stat icon={Weight} label="Weight" value={`${weightG}g`} />
-                    <Stat icon={Clock} label="Time" value={`${machineHours}h`} />
+                    <Stat icon={Weight} label="Weight" value={`${est.weightG}g`} />
+                    <Stat icon={Clock} label="Time" value={`${est.totalHours}h`} />
                     <Stat icon={Layers} label="Volume" value={`${volumeCm3.toFixed(1)}cm³`} />
                   </div>
 
