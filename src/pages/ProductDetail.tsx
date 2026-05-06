@@ -195,6 +195,31 @@ const ProductDetail = () => {
               </div>
             </div>
 
+            {product.colors && product.colors.length > 0 && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((c) => {
+                    const active = color === c;
+                    const hex = COLOR_HEX[c.toLowerCase()] || "#999";
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setColor(c)}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                          active ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <span className="h-3.5 w-3.5 rounded-full border border-border/60" style={{ background: hex }} />
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <div className="text-xs text-muted-foreground">Total</div>
