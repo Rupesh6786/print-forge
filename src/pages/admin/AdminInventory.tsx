@@ -23,6 +23,7 @@ interface FormState {
   stock: string;
   rating: string;
   materials: string;     // CSV
+  colors: string;        // CSV of selected colors
   category_id: string;
   is_active: string;
   imageFile: File | null;
@@ -30,8 +31,25 @@ interface FormState {
 }
 const blankForm: FormState = {
   name: "", tagline: "", description: "", price: "", stock: "0",
-  rating: "0", materials: "PLA", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
+  rating: "0", materials: "PLA", colors: "", category_id: "", is_active: "1", imageFile: null, galleryFiles: [],
 };
+
+// Curated color palette admins can pick from
+const COLOR_OPTIONS: { name: string; hex: string }[] = [
+  { name: "Black",  hex: "#1a1a1a" },
+  { name: "White",  hex: "#f5f5f5" },
+  { name: "Grey",   hex: "#808080" },
+  { name: "Red",    hex: "#dc2626" },
+  { name: "Orange", hex: "#ea580c" },
+  { name: "Yellow", hex: "#facc15" },
+  { name: "Green",  hex: "#16a34a" },
+  { name: "Blue",   hex: "#2563eb" },
+  { name: "Purple", hex: "#7c3aed" },
+  { name: "Pink",   hex: "#ec4899" },
+  { name: "Gold",   hex: "#d4af37" },
+  { name: "Silver", hex: "#c0c0c0" },
+  { name: "Transparent", hex: "transparent" },
+];
 
 const AdminInventory = () => {
   const [list, setList]     = useState<ApiProduct[]>([]);
@@ -74,6 +92,7 @@ const AdminInventory = () => {
       stock: String(p.stock ?? 0),
       rating: String(p.rating ?? 0),
       materials: p.materials ?? "PLA",
+      colors: (p as any).colors ?? "",
       category_id: p.category_id ? String(p.category_id) : "",
       is_active: String(p.is_active ?? 1),
       imageFile: null,
@@ -129,6 +148,7 @@ const AdminInventory = () => {
       fd.append("stock", form.stock || "0");
       fd.append("rating", form.rating || "0");
       fd.append("materials", form.materials || "PLA");
+      fd.append("colors", form.colors || "");
       if (form.category_id) fd.append("category_id", form.category_id);
       fd.append("is_active", form.is_active);
       if (form.imageFile) fd.append("image", form.imageFile);
