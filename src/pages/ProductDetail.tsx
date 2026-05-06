@@ -12,6 +12,14 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 
+const COLOR_HEX: Record<string, string> = {
+  black: "#1a1a1a", white: "#f5f5f5", grey: "#808080", gray: "#808080",
+  red: "#dc2626", orange: "#ea580c", yellow: "#facc15", green: "#16a34a",
+  blue: "#2563eb", purple: "#7c3aed", pink: "#ec4899",
+  gold: "#d4af37", silver: "#c0c0c0",
+  transparent: "repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 8px 8px",
+};
+
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
