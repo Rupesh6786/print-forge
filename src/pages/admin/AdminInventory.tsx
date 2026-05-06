@@ -287,6 +287,35 @@ const AdminInventory = () => {
                 </div>
               </div>
               <Field label="Materials (CSV)" value={form.materials} onChange={(v) => setForm({ ...form, materials: v })} placeholder="PLA,ABS,Resin" mono />
+              <div className="space-y-1.5">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Available colors</Label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_OPTIONS.map((c) => {
+                    const selected = form.colors.split(",").map((s) => s.trim()).filter(Boolean);
+                    const active = selected.includes(c.name);
+                    return (
+                      <button
+                        type="button"
+                        key={c.name}
+                        onClick={() => {
+                          const next = active ? selected.filter((s) => s !== c.name) : [...selected, c.name];
+                          setForm({ ...form, colors: next.join(",") });
+                        }}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                          active ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border border-border/60"
+                          style={{ background: c.hex === "transparent" ? "repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 8px 8px" : c.hex }}
+                        />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Select every color this product can be printed in. Customers will pick from these on the product page.</p>
+              </div>
               <div className="flex items-center gap-2">
                 <input id="active" type="checkbox" checked={form.is_active === "1"}
                        onChange={(e) => setForm({ ...form, is_active: e.target.checked ? "1" : "0" })} />
