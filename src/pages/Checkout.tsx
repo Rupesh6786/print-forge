@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag, Plus, Trash2, MapPin } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle2, Smartphone, Loader2, ShoppingBag, Plus, Trash2, MapPin, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageShell } from "@/components/layout/PageShell";
 import { buildUpiUrl } from "@/lib/upi";
 import { settingsApi } from "@/services/api";
-import { ordersApi } from "@/services/api";
+import { ordersApi, paymentsApi } from "@/services/api";
+import { loadRazorpayScript, openRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { ordersStore, newOrderId, estimatedDelivery } from "@/lib/orders-store";
@@ -61,6 +62,9 @@ const Checkout = () => {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [payMethod, setPayMethod] = useState<"upi_qr" | "razorpay">("razorpay");
+  const [paying, setPaying] = useState(false);
+  const [paidRef, setPaidRef] = useState<string | null>(null);
 
   // Auth gate
   useEffect(() => {
@@ -119,11 +123,14 @@ const Checkout = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const submitOrder = async () => {
-    if (!name || !email) { toast.error("Please fill name and email"); return; }
-    if (!line1 || !city || !stateName || !pincode) { toast.error("Please complete the shipping address"); return; }
-    if (items.length === 0) { toast.error("Cart is empty"); return; }
+  const validateForm = () => {
+    if (!name || !email) { toast.error("Please fill name and email"); return false; }
+    if (!line1 || !city || !stateName || !pincode) { toast.error("Please complete the shipping address"); return false; }
+    if (items.length === 0) { toast.error("Cart is empty"); return false; }
+    return true;
+  };
 
+  const persistOrder = async (paymentRef: string | null, method: "upi_qr" | "razorpay") => {
     const addressBlock = { line1, line2, city, state: stateName, pincode, country };
     const shipping_address = formatAddress(addressBlock);
 
@@ -139,7 +146,8 @@ const Checkout = () => {
         customer_name: name, customer_email: email, customer_phone: phone,
         shipping_address,
         total_amount: total,
-        payment_method: "upi_qr",
+        payment_method: method,
+        notes: paymentRef ? `payment_ref=${paymentRef}` : null,
         items: items.map((i) => ({
           product_id: Number(i.productId) || null,
           product_name: i.name, material: i.material,
@@ -158,16 +166,58 @@ const Checkout = () => {
         quantity: i.quantity, unit_price: i.price,
       })),
       total_amount: total,
-      payment_method: "upi_qr",
-      payment_status: "pending",
+      payment_method: method,
+      payment_status: method === "razorpay" ? "paid" : "pending",
       status: "pending",
       estimated_delivery: estimatedDelivery(7),
       created_at: new Date().toISOString(),
     });
     setSubmitted(true);
     clear();
-    toast.success("Order placed — admin will verify your payment shortly.");
+    toast.success(method === "razorpay"
+      ? "Payment successful — order placed!"
+      : "Order placed — admin will verify your payment shortly.");
     setTimeout(() => navigate("/my-orders"), 1500);
+  };
+
+  const submitUpiOrder = async () => {
+    if (!validateForm()) return;
+    await persistOrder(null, "upi_qr");
+  };
+
+  const payWithRazorpay = async () => {
+    if (!validateForm()) return;
+    setPaying(true);
+    try {
+      const ok = await loadRazorpayScript();
+      if (!ok) { toast.error("Could not load Razorpay. Check your internet."); setPaying(false); return; }
+      const order = await paymentsApi.createOrder(total, orderId, { app: "PrintForge" });
+      if (!order.keyId) { toast.error("Razorpay key not configured on server"); setPaying(false); return; }
+      openRazorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "PrintForge",
+        description: `Order ${orderId}`,
+        order_id: order.id,
+        prefill: { name, email, contact: phone },
+        theme: { color: "#7c3aed" },
+        modal: { ondismiss: () => setPaying(false) },
+        handler: async (resp) => {
+          try {
+            const v = await paymentsApi.verify(resp);
+            if (!v.ok) throw new Error("Signature verification failed");
+            setPaidRef(resp.razorpay_payment_id);
+            await persistOrder(resp.razorpay_payment_id, "razorpay");
+          } catch (e: any) {
+            toast.error("Payment verification failed: " + (e?.message || "unknown"));
+          } finally { setPaying(false); }
+        },
+      });
+    } catch (e: any) {
+      toast.error("Could not start Razorpay: " + (e?.message || "unknown"));
+      setPaying(false);
+    }
   };
 
   if (authLoading || !user) return null;
