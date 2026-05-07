@@ -323,38 +323,70 @@ const Checkout = () => {
             </div>
           </div>
 
-          {/* Right: QR */}
-          <div className="glass-card rounded-3xl p-6 md:p-8 flex flex-col items-center text-center h-fit lg:sticky lg:top-24">
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary mb-3">
-              <Smartphone className="h-3.5 w-3.5" /> Scan with any UPI app
-            </div>
-            <div className="relative">
-              {loadingSettings ? (
-                <div className="h-[260px] w-[260px] flex items-center justify-center bg-muted/30 rounded-2xl"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-              ) : (
-                <div className="bg-white p-4 rounded-2xl shadow-elegant"><QRCodeSVG value={upiUrl} size={232} level="M" /></div>
-              )}
-              <div className="absolute inset-0 -z-10 bg-aurora blur-2xl opacity-30 rounded-full" />
-            </div>
-            <div className="mt-4 text-xs text-muted-foreground space-y-1">
-              <div>Order <span className="font-mono text-foreground">{orderId}</span></div>
-              <div>Payee: <span className="text-foreground">{upi.upi_payee_name}</span></div>
-              <div>UPI: <span className="font-mono text-foreground">{upi.upi_id}</span></div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2 justify-center">
-              <Button variant="outline" size="sm" onClick={copyUpi} className="gap-1.5">
-                {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy UPI ID"}
-              </Button>
-              <a href={upiUrl}><Button variant="aurora" size="sm">Open in UPI app</Button></a>
+          {/* Right: payment */}
+          <div className="glass-card rounded-3xl p-6 md:p-8 h-fit lg:sticky lg:top-24 space-y-5">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Payment method</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setPayMethod("razorpay")}
+                  className={`p-3 rounded-xl border text-sm flex items-center justify-center gap-2 transition ${payMethod === "razorpay" ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"}`}>
+                  <CreditCard className="h-4 w-4" /> Razorpay
+                </button>
+                <button type="button" onClick={() => setPayMethod("upi_qr")}
+                  className={`p-3 rounded-xl border text-sm flex items-center justify-center gap-2 transition ${payMethod === "upi_qr" ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:border-primary/50"}`}>
+                  <Smartphone className="h-4 w-4" /> UPI QR
+                </button>
+              </div>
             </div>
 
-            <Button onClick={submitOrder} disabled={submitted} variant="aurora" size="lg" className="w-full mt-6">
-              {submitted ? <><CheckCircle2 className="h-4 w-4" /> Order placed</> : "I've paid — place order"}
-            </Button>
-            <p className="text-[11px] text-muted-foreground mt-3 max-w-xs">
-              After you tap above, your order is sent to the admin dashboard. The admin will verify the payment in your UPI account and mark it complete.
-            </p>
+            {payMethod === "razorpay" ? (
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary">
+                  <CreditCard className="h-3.5 w-3.5" /> Cards · UPI · Netbanking · Wallets
+                </div>
+                <div className="text-xs text-muted-foreground">Order <span className="font-mono text-foreground">{orderId}</span></div>
+                <div className="font-display text-3xl font-bold text-gradient">₹{total.toFixed(0)}</div>
+                <Button onClick={payWithRazorpay} disabled={submitted || paying} variant="aurora" size="lg" className="w-full">
+                  {paying ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening Razorpay…</>
+                   : submitted ? <><CheckCircle2 className="h-4 w-4" /> Paid</>
+                   : <>Pay ₹{total.toFixed(0)} securely</>}
+                </Button>
+                {paidRef && <p className="text-[11px] text-emerald-500 font-mono">Payment ID: {paidRef}</p>}
+                <p className="text-[11px] text-muted-foreground">You will only proceed after payment is verified by our server.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary">
+                  <Smartphone className="h-3.5 w-3.5" /> Scan with any UPI app
+                </div>
+                <div className="relative">
+                  {loadingSettings ? (
+                    <div className="h-[260px] w-[260px] flex items-center justify-center bg-muted/30 rounded-2xl"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                  ) : (
+                    <div className="bg-white p-4 rounded-2xl shadow-elegant"><QRCodeSVG value={upiUrl} size={232} level="M" /></div>
+                  )}
+                  <div className="absolute inset-0 -z-10 bg-aurora blur-2xl opacity-30 rounded-full" />
+                </div>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div>Order <span className="font-mono text-foreground">{orderId}</span></div>
+                  <div>Payee: <span className="text-foreground">{upi.upi_payee_name}</span></div>
+                  <div>UPI: <span className="font-mono text-foreground">{upi.upi_id}</span></div>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <Button variant="outline" size="sm" onClick={copyUpi} className="gap-1.5">
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied" : "Copy UPI ID"}
+                  </Button>
+                  <a href={upiUrl}><Button variant="aurora" size="sm">Open in UPI app</Button></a>
+                </div>
+                <Button onClick={submitUpiOrder} disabled={submitted} variant="aurora" size="lg" className="w-full">
+                  {submitted ? <><CheckCircle2 className="h-4 w-4" /> Order placed</> : "I've paid — place order"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground max-w-xs">
+                  After you tap above, your order is sent to the admin dashboard. The admin will verify the payment in your UPI account and mark it complete.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
