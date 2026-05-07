@@ -214,6 +214,25 @@ export const settingsApi = {
     request<{ ok: true }>("/admin/settings", { method: "PUT", body: data, authed: true }),
 };
 
+/* ────────── Razorpay ────────── */
+export interface RazorpayOrderResp {
+  id: string;
+  amount: number;     // paise
+  currency: string;
+  keyId: string;
+}
+export const paymentsApi = {
+  getKey: () => request<{ keyId: string | null }>("/payments/razorpay/key"),
+  createOrder: (amount: number, receipt?: string, notes?: Record<string, string>) =>
+    request<RazorpayOrderResp>("/payments/razorpay/order", {
+      method: "POST", body: { amount, receipt, notes },
+    }),
+  verify: (data: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) =>
+    request<{ ok: true; payment_id: string; order_id: string }>("/payments/razorpay/verify", {
+      method: "POST", body: data,
+    }),
+};
+
 /* ────────── Lithophane ────────── */
 export interface ApiLithophane {
   id: number;

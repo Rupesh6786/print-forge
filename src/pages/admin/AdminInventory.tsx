@@ -232,7 +232,7 @@ const AdminInventory = () => {
 
       {/* Create / edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit product" : "New product"}</DialogTitle>
             <DialogDescription>
