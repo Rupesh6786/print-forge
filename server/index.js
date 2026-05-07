@@ -17,6 +17,9 @@ const mysql   = require('mysql2/promise');
 const admin   = require('firebase-admin');
 const fs      = require('fs');
 const path    = require('path');
+const crypto  = require('crypto');
+let Razorpay  = null;
+try { Razorpay = require('razorpay'); } catch { console.warn('razorpay package not installed yet'); }
 
 // ─── Firebase Admin init ───────────────────────────────────
 function loadServiceAccount() {
@@ -277,6 +280,51 @@ app.patch('/admin/orders/:id/status', authRequired, adminRequired, async (req, r
 app.patch('/admin/orders/:id/paid', authRequired, adminRequired, async (req, res) => {
   await pool.query("UPDATE orders SET payment_status='paid', payment_ref=? WHERE id=?", [req.body.payment_ref || null, req.params.id]);
   res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════
+//                       RAZORPAY
+// ════════════════════════════════════════════════════════════
+const RZP_KEY_ID     = process.env.RAZORPAY_KEY_ID || '';
+const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+const rzp = (Razorpay && RZP_KEY_ID && RZP_KEY_SECRET)
+  ? new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET })
+  : null;
+
+// Public key for the frontend Razorpay checkout widget
+app.get('/payments/razorpay/key', (_req, res) => {
+  res.json({ keyId: RZP_KEY_ID || null });
+});
+
+// Create a Razorpay order. Amount in INR (rupees).
+app.post('/payments/razorpay/order', async (req, res) => {
+  if (!rzp) return res.status(500).json({ error: 'Razorpay not configured on server' });
+  const { amount, receipt, notes } = req.body || {};
+  const amt = Math.round(Number(amount));
+  if (!amt || amt < 1) return res.status(400).json({ error: 'Invalid amount' });
+  try {
+    const order = await rzp.orders.create({
+      amount: amt * 100,            // paise
+      currency: 'INR',
+      receipt: receipt || ('PF-' + Date.now()),
+      notes: notes || {},
+    });
+    res.json({ id: order.id, amount: order.amount, currency: order.currency, keyId: RZP_KEY_ID });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Verify Razorpay signature after checkout — frontend cannot proceed without 200 OK.
+app.post('/payments/razorpay/verify', async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
+    return res.status(400).json({ error: 'Missing payment fields' });
+  if (!RZP_KEY_SECRET) return res.status(500).json({ error: 'Razorpay not configured' });
+  const expected = crypto
+    .createHmac('sha256', RZP_KEY_SECRET)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest('hex');
+  if (expected !== razorpay_signature) return res.status(400).json({ ok: false, error: 'Signature mismatch' });
+  res.json({ ok: true, payment_id: razorpay_payment_id, order_id: razorpay_order_id });
 });
 
 // ════════════════════════════════════════════════════════════
