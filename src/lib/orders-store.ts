@@ -13,7 +13,7 @@ export interface StoredOrder {
   shipping_address?: string;
   items: { productId: string; name: string; material: string; quantity: number; unit_price: number }[];
   total_amount: number;
-  payment_method: "upi_qr";
+  payment_method: "upi_qr" | "razorpay";
   payment_status: "pending" | "paid";
   payment_ref?: string;
   status: "pending" | "printing" | "shipped" | "delivered" | "cancelled";
