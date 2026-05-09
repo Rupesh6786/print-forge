@@ -1,0 +1,61 @@
+// Firestore security rules for PrintForge
+// Deploy with: firebase deploy --only firestore:rules
+//
+// Admin access is determined by matching the authenticated user's
+// UID against the hardcoded ADMIN_UIDS list (mirrors src/lib/firebase.ts).
+// Add new admin UIDs to BOTH this file AND src/lib/firebase.ts.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "PjWhpms7NWRueIymevyWcAnXr9f2"
+      ];
+    }
+
+    // Users can read/write only their own profile doc
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read, write: if isAdmin();
+    }
+
+    // Public catalog: anyone can read, only admins can write
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders: a user can read/create their own order; admins can do anything
+    match /orders/{id} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Public can submit enquiries; only admins can read/manage
+    match /enquiries/{id} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Quote requests
+    match /quotes/{id} {
+      allow create: if true;
+      allow read:   if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Settings: admin-only
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

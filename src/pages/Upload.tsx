@@ -1,0 +1,338 @@
+import { useState, useRef, DragEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { Upload as UploadIcon, FileBox, X, Check, Calculator, Layers, Clock, Weight, Loader2 } from "lucide-react";
+import { PageShell } from "@/components/layout/PageShell";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
+import { stl } from "@/services/api";
+
+interface FileMeta { name: string; sizeMB: number; file: File }
+
+// ─── Material properties (Mumbai market) ──────────────────────
+// Density g/cm³, price/gram INR, speedMultiplier (>1 faster, <1 slower)
+const materials = [
+  { id: "PLA",  name: "PLA",  desc: "Standard · Easy, low warp",         density: 1.24, pricePerGram: 1.2, speedMultiplier: 1.0, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
+  { id: "PETG", name: "PETG", desc: "Standard · Strong, weather-proof",  density: 1.27, pricePerGram: 1.4, speedMultiplier: 0.8, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
+  { id: "ABS",  name: "ABS",  desc: "Premium · Heat resistant",          density: 1.04, pricePerGram: 1.1, speedMultiplier: 0.9, setupFee: 250, tier: "Premium",  color: "from-blue-400 to-indigo-500" },
+  { id: "TPU",  name: "TPU",  desc: "Premium · Flexible, rubber-like",   density: 1.21, pricePerGram: 2.2, speedMultiplier: 0.4, setupFee: 250, tier: "Premium",  color: "from-violet-400 to-fuchsia-500" },
+] as const;
+
+// Mumbai delivery: Local ₹70 (Dunzo/Borzo), Outstation ₹160+
+const LOCAL_DELIVERY = 70;
+const OUTSTATION_DELIVERY = 160;
+// Printer power 150W @ ₹9/kWh
+const ELECTRICITY_RATE = 9 * 0.15; // ₹/hour
+
+/**
+ * Advanced cost estimator — accounts for shell + infill volume,
+ * material density, layer height (time), and electricity.
+ * `volumeCm3` is the bounding-volume estimate from the STL size.
+ */
+function calculateAdvancedCost(volumeCm3: number, mat: typeof materials[number], infillPct: number, layerHeight: number) {
+  const shellVolume  = volumeCm3 * 0.15;
+  const infillVolume = volumeCm3 * 0.85 * (infillPct / 100);
+  const weightG = (shellVolume + infillVolume) * mat.density;
+
+  // Base 1 hour per 10cm³ at 0.2mm layer height
+  const baseTime = volumeCm3 / 10;
+  const timeAdjust = 0.2 / layerHeight;
+  const totalHours = (baseTime * timeAdjust) / mat.speedMultiplier;
+
+  const materialCost   = weightG * mat.pricePerGram;
+  const electricityCost = totalHours * ELECTRICITY_RATE;
+  return {
+    weightG: +weightG.toFixed(2),
+    totalHours: +totalHours.toFixed(2),
+    materialCost: +materialCost.toFixed(2),
+    electricityCost: +electricityCost.toFixed(2),
+  };
+}
+
+const Upload = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { add } = useCart();
+  const [files, setFiles] = useState<FileMeta[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [material, setMaterial] = useState("PLA");
+  const [infill, setInfill] = useState([20]);
+  const [quality, setQuality] = useState([0.2]); // layer height mm
+  const [delivery, setDelivery] = useState<"local" | "outstation">("local");
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    const accepted: FileMeta[] = [];
+    for (const f of Array.from(incoming)) {
+      if (!f.name.toLowerCase().endsWith(".stl")) {
+        toast.error(`Skipped ${f.name} — not an STL file`);
+        continue;
+      }
+      accepted.push({ name: f.name, sizeMB: +(f.size / 1024 / 1024).toFixed(2), file: f });
+    }
+    if (accepted.length) {
+      setFiles((prev) => [...prev, ...accepted]);
+      toast.success(`${accepted.length} STL file${accepted.length > 1 ? "s" : ""} added`);
+    }
+  };
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  // Live advanced estimator
+  const mat = materials.find((m) => m.id === material)!;
+  const totalSizeMB = files.reduce((s, f) => s + f.sizeMB, 0);
+  // Approximate volume from file size — STL ASCII/binary is roughly proportional
+  const volumeCm3 = totalSizeMB * 8;
+  const est = calculateAdvancedCost(volumeCm3, mat, infill[0], quality[0]);
+  const setupFee    = mat.setupFee;
+  const deliveryFee = delivery === "local" ? LOCAL_DELIVERY : OUTSTATION_DELIVERY;
+  const total = Math.ceil(est.materialCost + est.electricityCost + setupFee + deliveryFee);
+
+  const proceedToCheckout = async () => {
+    if (files.length === 0) { toast.error("Add at least one STL file first"); return; }
+    if (!user) {
+      toast.info("Please sign in to continue");
+      navigate("/login", { state: { from: "/upload" } });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Upload all STL files to the API (best-effort — keep going on failures)
+      const uploadedIds: number[] = [];
+      for (const f of files) {
+        try {
+          const r = await stl.upload(f.file);
+          uploadedIds.push(r.id);
+        } catch (e: any) {
+          console.warn("STL upload failed for", f.name, e?.message);
+        }
+      }
+      // Add a single line item representing the print job to the cart
+      const fileNames = files.map((f) => f.name).join(", ");
+      add({
+        productId: `stl-${Date.now()}`,
+        name: `Custom STL print (${files.length} file${files.length > 1 ? "s" : ""})`,
+        image: "/placeholder.svg",
+        price: total,
+        material: `${material} · ${infill[0]}% infill · ${quality[0]}mm`,
+        quantity: 1,
+      });
+      toast.success("Quote added to cart", { description: `Files: ${fileNames}` });
+      navigate("/checkout");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <PageShell>
+      <div className="container">
+        <div className="max-w-3xl mb-10 animate-fade-up">
+          <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight">
+            Upload your <span className="text-gradient">STL</span>
+          </h1>
+          <p className="text-muted-foreground mt-3 text-lg">
+            Drag, drop, configure. We'll print, finish, and ship it within 48 hours. Files upload securely to our DigitalOcean Spaces bucket.
+          </p>
+        </div>
+
+        <div className="grid lg:grid-cols-5 gap-6">
+          {/* Drop zone */}
+          <div className="lg:col-span-3 space-y-6">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              onClick={() => inputRef.current?.click()}
+              className={`relative glass-card rounded-3xl p-12 text-center cursor-pointer transition-all duration-300 ${
+                dragging ? "border-primary shadow-glow scale-[1.01]" : "hover:border-primary/40"
+              }`}
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".stl"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+              {files.length === 0 ? (
+                <>
+                  <div className="relative mx-auto h-20 w-20 rounded-2xl bg-aurora flex items-center justify-center mb-4 animate-glow-pulse">
+                    <UploadIcon className="h-10 w-10 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold mb-2">Drop your .STL files here</h3>
+                  <p className="text-sm text-muted-foreground mb-4">or click to browse · select multiple · Max 100 MB each</p>
+                  <Button variant="glass" type="button">Choose files</Button>
+                </>
+              ) : (
+                <div className="space-y-2 text-left">
+                  {files.map((f, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
+                      <div className="h-10 w-10 rounded-lg bg-aurora flex items-center justify-center shrink-0">
+                        <FileBox className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate text-sm">{f.name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{f.sizeMB} MB</div>
+                      </div>
+                      <Button
+                        variant="ghost" size="icon"
+                        onClick={(e) => { e.stopPropagation(); setFiles((p) => p.filter((_, i) => i !== idx)); }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    Click anywhere above to add more STL files
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Material selector */}
+            <div>
+              <h3 className="font-display font-semibold mb-3 flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" /> Material
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {materials.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMaterial(m.id)}
+                    className={`text-left p-4 rounded-2xl border transition-all ${
+                      material === m.id
+                        ? "border-primary bg-primary/10 shadow-glow"
+                        : "glass hover:border-primary/40"
+                    }`}
+                  >
+                    <div className={`h-2 w-12 rounded-full bg-gradient-to-r ${m.color} mb-3`} />
+                    <div className="font-display font-semibold flex items-center gap-2">
+                      {m.name}
+                      {material === m.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">{m.desc}</div>
+                    <div className="text-xs font-mono text-muted-foreground mt-2">₹{m.pricePerGram}/g · {m.density} g/cm³</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sliders */}
+            <div className="glass-card rounded-2xl p-6 space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium">Infill density</label>
+                  <span className="font-mono text-sm text-primary">{infill[0]}%</span>
+                </div>
+                <Slider value={infill} onValueChange={setInfill} min={5} max={100} step={5} />
+                <p className="text-xs text-muted-foreground mt-2">Higher = stronger but heavier and slower.</p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium">Layer height (quality)</label>
+                  <span className="font-mono text-sm text-primary">{quality[0]} mm</span>
+                </div>
+                <Slider value={quality} onValueChange={setQuality} min={0.08} max={0.32} step={0.04} />
+                <p className="text-xs text-muted-foreground mt-2">Lower = finer detail, longer print time.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Estimator */}
+          <div className="lg:col-span-2">
+            <div className="sticky top-24 glass-card rounded-3xl p-6 space-y-5">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calculator className="h-4 w-4 text-primary" />
+                <span>Live pricing estimate</span>
+              </div>
+
+              {files.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  Upload one or more STLs to see your quote
+                </div>
+              ) : (
+                <>
+                  <div className="text-xs text-muted-foreground">{files.length} file{files.length > 1 ? "s" : ""} · {totalSizeMB.toFixed(2)} MB total</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat icon={Weight} label="Weight" value={`${est.weightG}g`} />
+                    <Stat icon={Clock} label="Time" value={`${est.totalHours}h`} />
+                    <Stat icon={Layers} label="Volume" value={`${volumeCm3.toFixed(1)}cm³`} />
+                  </div>
+
+                  <div className="space-y-2 text-sm pt-2 border-t border-border/50">
+                    <Row label={`Material (${material})`} value={`₹${est.materialCost.toFixed(2)}`} />
+                    <Row label={`Electricity (${est.totalHours}h)`} value={`₹${est.electricityCost.toFixed(2)}`} />
+                    <Row label={`Setup & QC (${mat.tier})`} value={`₹${setupFee}`} />
+                    <Row label={`Delivery (${delivery === "local" ? "Mumbai" : "Outstation"})`} value={`₹${deliveryFee}`} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("local")}
+                      className={`p-2 rounded-lg text-xs border transition ${delivery === "local" ? "border-primary bg-primary/10" : "border-border"}`}
+                    >Mumbai · ₹{LOCAL_DELIVERY}</button>
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("outstation")}
+                      className={`p-2 rounded-lg text-xs border transition ${delivery === "outstation" ? "border-primary bg-primary/10" : "border-border"}`}
+                    >Outstation · ₹{OUTSTATION_DELIVERY}</button>
+                  </div>
+
+                  <div className="pt-4 border-t border-border/50">
+                    <div className="flex items-end justify-between">
+                      <span className="text-sm text-muted-foreground">Total</span>
+                      <span className="font-display text-3xl font-bold text-gradient">₹{total}</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="aurora"
+                    size="lg"
+                    className="w-full"
+                    onClick={proceedToCheckout}
+                    disabled={submitting}
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Continue to checkout
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Razorpay secure checkout · Free reprints if imperfect · Outstation delivery from ₹{OUTSTATION_DELIVERY}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
+};
+
+const Stat = ({ icon: Icon, label, value }: { icon: typeof UploadIcon; label: string; value: string }) => (
+  <div className="glass rounded-xl p-3 text-center">
+    <Icon className="h-3.5 w-3.5 mx-auto text-primary mb-1" />
+    <div className="font-display font-bold text-sm">{value}</div>
+    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
+  </div>
+);
+
+const Row = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex justify-between">
+    <span className="text-muted-foreground">{label}</span>
+    <span className="font-mono">{value}</span>
+  </div>
+);
+
+export default Upload;
