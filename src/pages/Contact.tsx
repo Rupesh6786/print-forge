@@ -37,7 +37,6 @@ const Contact = () => {
           <p className="text-muted-foreground mt-3">Bulk orders, partnerships, or just curious — drop a line.</p>
           <div className="mt-8 space-y-4 text-sm">
             <div className="flex items-center gap-3"><Mail className="h-4 w-4 text-primary" /> support@printforge.space</div>
-            <div className="flex items-center gap-3"><Phone className="h-4 w-4 text-primary" /> +91 00000 00000</div>
             <div className="flex items-center gap-3"><MapPin className="h-4 w-4 text-primary" /> Bengaluru, India</div>
           </div>
         </div>

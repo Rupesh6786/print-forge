@@ -14,17 +14,14 @@ interface FileMeta { name: string; sizeMB: number; file: File }
 // ─── Material properties (Mumbai market) ──────────────────────
 // Density g/cm³, price/gram INR, speedMultiplier (>1 faster, <1 slower)
 const materials = [
-  { id: "PLA",  name: "PLA",  desc: "Standard · Easy, low warp",         density: 1.24, pricePerGram: 1.2, speedMultiplier: 1.0, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
-  { id: "PETG", name: "PETG", desc: "Standard · Strong, weather-proof",  density: 1.27, pricePerGram: 1.4, speedMultiplier: 0.8, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
-  { id: "ABS",  name: "ABS",  desc: "Premium · Heat resistant",          density: 1.04, pricePerGram: 1.1, speedMultiplier: 0.9, setupFee: 250, tier: "Premium",  color: "from-blue-400 to-indigo-500" },
-  { id: "TPU",  name: "TPU",  desc: "Premium · Flexible, rubber-like",   density: 1.21, pricePerGram: 2.2, speedMultiplier: 0.4, setupFee: 250, tier: "Premium",  color: "from-violet-400 to-fuchsia-500" },
+  { id: "PLA",  name: "PLA",  desc: "Standard · Easy, low warp",         density: 1.24, pricePerGram: 3.0, speedMultiplier: 1.0, setupFee: 150, tier: "Standard", color: "from-emerald-400 to-cyan-400" },
+  { id: "PETG", name: "PETG", desc: "Standard · Strong, weather-proof",  density: 1.27, pricePerGram: 4.0, speedMultiplier: 0.8, setupFee: 150, tier: "Standard", color: "from-teal-400 to-sky-400" },
+  { id: "ABS",  name: "ABS",  desc: "Premium · Heat resistant",          density: 1.04, pricePerGram: 4.5, speedMultiplier: 0.9, setupFee: 250, tier: "Premium",  color: "from-blue-400 to-indigo-500" },
+  { id: "TPU",  name: "TPU",  desc: "Premium · Flexible, rubber-like",   density: 1.21, pricePerGram: 6.5, speedMultiplier: 0.4, setupFee: 250, tier: "Premium",  color: "from-violet-400 to-fuchsia-500" },
 ] as const;
 
-// Mumbai delivery: Local ₹70 (Dunzo/Borzo), Outstation ₹160+
-const LOCAL_DELIVERY = 70;
-const OUTSTATION_DELIVERY = 160;
 // Printer power 150W @ ₹9/kWh
-const ELECTRICITY_RATE = 9 * 0.15; // ₹/hour
+const ELECTRICITY_RATE = 11 * 0.15; // ₹/hour
 
 /**
  * Advanced cost estimator — accounts for shell + infill volume,
@@ -93,8 +90,7 @@ const Upload = () => {
   const volumeCm3 = totalSizeMB * 8;
   const est = calculateAdvancedCost(volumeCm3, mat, infill[0], quality[0]);
   const setupFee    = mat.setupFee;
-  const deliveryFee = delivery === "local" ? LOCAL_DELIVERY : OUTSTATION_DELIVERY;
-  const total = Math.ceil(est.materialCost + est.electricityCost + setupFee + deliveryFee);
+  const total = Math.ceil(est.materialCost + est.electricityCost + setupFee);
 
   const proceedToCheckout = async () => {
     if (files.length === 0) { toast.error("Add at least one STL file first"); return; }
@@ -274,20 +270,6 @@ const Upload = () => {
                     <Row label={`Material (${material})`} value={`₹${est.materialCost.toFixed(2)}`} />
                     <Row label={`Electricity (${est.totalHours}h)`} value={`₹${est.electricityCost.toFixed(2)}`} />
                     <Row label={`Setup & QC (${mat.tier})`} value={`₹${setupFee}`} />
-                    <Row label={`Delivery (${delivery === "local" ? "Mumbai" : "Outstation"})`} value={`₹${deliveryFee}`} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDelivery("local")}
-                      className={`p-2 rounded-lg text-xs border transition ${delivery === "local" ? "border-primary bg-primary/10" : "border-border"}`}
-                    >Mumbai · ₹{LOCAL_DELIVERY}</button>
-                    <button
-                      type="button"
-                      onClick={() => setDelivery("outstation")}
-                      className={`p-2 rounded-lg text-xs border transition ${delivery === "outstation" ? "border-primary bg-primary/10" : "border-border"}`}
-                    >Outstation · ₹{OUTSTATION_DELIVERY}</button>
                   </div>
 
                   <div className="pt-4 border-t border-border/50">
@@ -308,7 +290,7 @@ const Upload = () => {
                     Continue to checkout
                   </Button>
                   <p className="text-[11px] text-muted-foreground text-center">
-                    Razorpay secure checkout · Free reprints if imperfect · Outstation delivery from ₹{OUTSTATION_DELIVERY}
+                    Razorpay secure checkout · Free reprints if imperfect · 
                   </p>
                 </>
               )}
