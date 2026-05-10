@@ -71,7 +71,7 @@ const Checkout = () => {
     if (pin.length !== 6) return;
     setShippingLoading(true);
     try {
-      const response = await axios.post("/api/calculate-rate", {
+      const response = await axios.post("/shipping/calculate", {
         delivery_pincode: pin,
         weight: 0.5, // Standard weight, adjust based on cart items if needed
         total_value: cartSubtotal
